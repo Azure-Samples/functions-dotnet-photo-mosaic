@@ -8,7 +8,6 @@ namespace MosaicMaker
 {
     public static class MosaicBuilder
     {
-        //private static FlickrTileProvider TileProvider = new FlickrTileProvider();
         private static QuadrantMatchingTileProvider MatchingTileProvider = new QuadrantMatchingTileProvider();
 
         public static int TileHeight { get; set; }
@@ -37,27 +36,20 @@ namespace MosaicMaker
             return GenerateMosaic(baseImageFile, tileImages);
         }
 
-        public static bool CropAndScaleTileImages()
+        public static void CropAndScaleTileImages()
         {
-            try {
-                var files = Directory.GetFiles(DownloadFolder);
-                float aspectRatio = (float)TileWidth / TileHeight;
+            var files = Directory.GetFiles(DownloadFolder);
+            float aspectRatio = (float)TileWidth / TileHeight;
 
-                foreach (var f in files) {
+            foreach (var f in files) {
 
-                    var filename = Path.GetFileName(f);
+                var filename = Path.GetFileName(f);
 
-                    string targetFile = Path.Combine(ScaledFolder, filename);
-                    if (!File.Exists(targetFile)) { // Scale only if the output file doesn't exist
-                        ResizeAndCropImage(DownloadFolder, ScaledFolder, filename, aspectRatio);
-                    }
+                string targetFile = Path.Combine(ScaledFolder, filename);
+                if (!File.Exists(targetFile)) { // Scale only if the output file doesn't exist
+                    ResizeAndCropImage(DownloadFolder, ScaledFolder, filename, aspectRatio);
                 }
             }
-
-            catch (Exception) {
-                return false;
-            }
-            return true;
         }
 
         private static void ResizeAndCropImage(string inputFolder, string outputFolder, string inputFilename, float aspectRatio)
@@ -119,22 +111,15 @@ namespace MosaicMaker
 
             var outputPath = Path.Combine(RootFolder, $"{filename}.output{extension}");
 
-            //var transparency = SKColors.White.WithAlpha(32); // 127 => 50%
-
             using (var inputStream = File.OpenRead(baseImageFile))
             using (var skStream = new SKManagedStream(inputStream))
             using (var bitmap = SKBitmap.Decode(skStream)) {
 
-                var paint = new SKPaint() {
-                    //BlendMode = SKBlendMode.Src,
-                     Color = SKColors.White.WithAlpha(200)
-                };
+                // use transparency for the source image overlay
+                var srcImagePaint = new SKPaint() { Color = SKColors.White.WithAlpha(200) };
 
-                int baseImageWidth = bitmap.Width;
-                int baseImageHeight = bitmap.Height;
-
-                int xTileCount = baseImageWidth / MosaicBuilder.TileWidth;
-                int yTileCount = baseImageHeight / MosaicBuilder.TileHeight;
+                int xTileCount = bitmap.Width  / MosaicBuilder.TileWidth;
+                int yTileCount = bitmap.Height / MosaicBuilder.TileHeight;
 
                 int tileCount = xTileCount * yTileCount;
 
@@ -157,14 +142,11 @@ namespace MosaicMaker
                 // create output surface
                 var surface = SKSurface.Create(targetWidth, targetHeight, SKImageInfo.PlatformColorType, SKAlphaType.Premul);
                 surface.Canvas.DrawColor(SKColors.White); // clear the canvas / fill with white
-                surface.Canvas.DrawBitmap(bitmap, 0, 0, paint);
+                surface.Canvas.DrawBitmap(bitmap, 0, 0, srcImagePaint);
 
-
-                var tilePaint = new SKPaint() {
-                    BlendMode = SKBlendMode.Darken
-                };
-
-                surface.Canvas.SaveLayer(tilePaint);
+                // using the Darken blend mode causes colors from the source image to come through
+                var tilePaint = new SKPaint() { BlendMode = SKBlendMode.Darken };
+                surface.Canvas.SaveLayer(tilePaint); // save layer so blend mode is applied
 
                 var random = new Random();
 
@@ -172,15 +154,13 @@ namespace MosaicMaker
 
                     // choose a new tile at random
                     int nextIndex = random.Next(tileList.Count);
-                    var point = tileList[nextIndex];
+                    var tileInfo = tileList[nextIndex];
                     tileList.RemoveAt(nextIndex);
 
                     // get the tile image for this point
-                    var exclusionList = GetExclusionList(mosaicTileGrid, point.Item1, point.Item2);
-                    var tileImageFile = MatchingTileProvider.GetImageForTile(point.Item1, point.Item2, exclusionList);
-                    mosaicTileGrid[point.Item1, point.Item2] = tileImageFile;
-
-                    //Trace.WriteLine($"({point.X},{point.Y}) = {tileImageFile}");
+                    var exclusionList = GetExclusionList(mosaicTileGrid, tileInfo.Item1, tileInfo.Item2);
+                    var tileImageFile = MatchingTileProvider.GetImageForTile(tileInfo.Item1, tileInfo.Item2, exclusionList);
+                    mosaicTileGrid[tileInfo.Item1, tileInfo.Item2] = tileImageFile;
 
                     // get a bitmap for the tile image
                     using (var tileFileStream = File.OpenRead(tileImageFile))
@@ -188,17 +168,14 @@ namespace MosaicMaker
                     using (var tileBitmap = SKBitmap.Decode(tileImageStream)) {
 
                         // draw the tile on the surface at the coordinates
-                        surface.Canvas.DrawBitmap(
-                                tileBitmap,
-                                SKRect.Create(point.Item1 * TileWidth, point.Item2 * TileHeight, finalTileWidth, finalTileHeight));
-                        //tilePaint);
+                        SKRect tileRect = SKRect.Create(tileInfo.Item1 * TileWidth, tileInfo.Item2 * TileHeight, finalTileWidth, finalTileHeight);
+                        surface.Canvas.DrawBitmap(tileBitmap, tileRect);
                     }
                 }
 
-                surface.Canvas.Restore();
+                surface.Canvas.Restore(); // merge layers
                 surface.Canvas.Flush();
-                var ouputImage = surface.Snapshot();
-                SaveImage(outputPath, ouputImage);
+                SaveImage(outputPath, surface.Snapshot());
             }
 
             return outputPath;
@@ -211,252 +188,139 @@ namespace MosaicMaker
 
             var exclusionList = new List<string>();
 
-            for (int x = Math.Max(0, xIndex - xRadius); x < Math.Min(mosaicTileGrid.GetLength(0), xIndex + xRadius); x++) {
-                for (int y = Math.Max(0, yIndex - yRadius); y < Math.Min(mosaicTileGrid.GetLength(1), yIndex + yRadius); y++) {
-                    if (mosaicTileGrid[x, y] != null)
-                        exclusionList.Add(mosaicTileGrid[x, y]);
-                }
-            }
+            // TODO: add this back. Currently requires too many input tile images
+
+            //for (int x = Math.Max(0, xIndex - xRadius); x < Math.Min(mosaicTileGrid.GetLength(0), xIndex + xRadius); x++) {
+            //    for (int y = Math.Max(0, yIndex - yRadius); y < Math.Min(mosaicTileGrid.GetLength(1), yIndex + yRadius); y++) {
+            //        if (mosaicTileGrid[x, y] != null)
+            //            exclusionList.Add(mosaicTileGrid[x, y]);
+            //    }
+            //}
 
             return exclusionList;
         }
     }
-}
 
-public class QuadrantMatchingTileProvider
-{
-    internal static int quadrantDivisionCount = 1;
-    private string inputFile;
-    private SKColor[,][,] inputImageRGBGrid;
-    private List<(string, SKColor[,])> tileImageRGBGridList;
-
-    public void SetInputImage(string inputFile)
+    public class QuadrantMatchingTileProvider
     {
-        this.inputFile = inputFile;
-    }
+        internal static int quadrantDivisionCount = 1;
+        private string inputFile;
+        private SKColor[,][,] inputImageRGBGrid;
+        private List<(string, SKColor[,])> tileImageRGBGridList;
 
-    // Preprocess the quadrants of the input image
-    public void ProcessInputImageColors(int tileWidth, int tileHeight)
-    {
-        using (var inputStream = File.OpenRead(inputFile))
-        using (var skStream = new SKManagedStream(inputStream))
-        using (var bitmap = SKBitmap.Decode(skStream)) {
-
-            int xTileCount = bitmap.Width / tileWidth;
-            int yTileCount = bitmap.Height / tileHeight;
-
-            int tileDivisionWidth = tileWidth / quadrantDivisionCount;
-            int tileDivisionHeight = tileHeight / quadrantDivisionCount;
-
-            int quadrantsCompleted = 0;
-            int quadrantsTotal = xTileCount * yTileCount * quadrantDivisionCount * quadrantDivisionCount;
-            inputImageRGBGrid = new SKColor[xTileCount, yTileCount][,];
-
-            //Divide the input image into separate tile sections and calculate the average pixel value for each one
-            for (int yTileIndex = 0; yTileIndex < yTileCount; yTileIndex++) {
-                for (int xTileIndex = 0; xTileIndex < xTileCount; xTileIndex++) {
-                    var rect = SKRectI.Create(xTileIndex * tileWidth, yTileIndex * tileHeight, tileWidth, tileHeight);
-                    inputImageRGBGrid[xTileIndex, yTileIndex] = GetAverageColorGrid(bitmap, rect);
-                    quadrantsCompleted += (quadrantDivisionCount * quadrantDivisionCount);
-                }
-            }
+        public void SetInputImage(string inputFile)
+        {
+            this.inputFile = inputFile;
         }
-    }
 
-    // Convert tile images to average color
-    public void ProcessTileColors(string sourceImageFolder)
-    {
-        tileImageRGBGridList = new List<(string, SKColor[,])>();
-
-        foreach (var file in Directory.GetFiles(sourceImageFolder)) {
-
-            using (var inputStream = File.OpenRead(file))
+        // Preprocess the quadrants of the input image
+        public void ProcessInputImageColors(int tileWidth, int tileHeight)
+        {
+            using (var inputStream = File.OpenRead(inputFile))
             using (var skStream = new SKManagedStream(inputStream))
             using (var bitmap = SKBitmap.Decode(skStream)) {
 
-                var rect = SKRectI.Create(0, 0, bitmap.Width, bitmap.Height);
-                tileImageRGBGridList.Add((file, GetAverageColorGrid(bitmap, rect)));
-            }
-        }
-    }
+                int xTileCount = bitmap.Width / tileWidth;
+                int yTileCount = bitmap.Height / tileHeight;
 
-    /// Returns the best match image per tile area
-    public string GetImageForTile(int xIndex, int yIndex, List<string> excludedImageFiles)
-    {
-        var tileDistances = new List<(double, string)>();
+                int tileDivisionWidth = tileWidth / quadrantDivisionCount;
+                int tileDivisionHeight = tileHeight / quadrantDivisionCount;
 
-        foreach (var tileGrid in tileImageRGBGridList) {
-            double distance = 0;
+                int quadrantsCompleted = 0;
+                int quadrantsTotal = xTileCount * yTileCount * quadrantDivisionCount * quadrantDivisionCount;
+                inputImageRGBGrid = new SKColor[xTileCount, yTileCount][,];
 
-            for (int x = 0; x < quadrantDivisionCount; x++)
-                for (int y = 0; y < quadrantDivisionCount; y++) {
-                    distance +=
-                        Math.Sqrt(
-                            Math.Abs(Math.Pow(tileGrid.Item2[x, y].Red, 2) - Math.Pow(inputImageRGBGrid[xIndex, yIndex][x, y].Red, 2)) +
-                            Math.Abs(Math.Pow(tileGrid.Item2[x, y].Green, 2) - Math.Pow(inputImageRGBGrid[xIndex, yIndex][x, y].Green, 2)) +
-                            Math.Abs(Math.Pow(tileGrid.Item2[x, y].Blue, 2) - Math.Pow(inputImageRGBGrid[xIndex, yIndex][x, y].Blue, 2)));
-                }
-
-            tileDistances.Add((distance, tileGrid.Item1));
-        }
-
-        var sorted = tileDistances
-            // .Where(x => !excludedImageFiles.Contains(x.Item2)) // remove items from excluded list
-            .OrderBy(item => item.Item1); // sort by best match
-
-        return sorted.First().Item2;
-    }
-
-    // Converts a portion of the base image to an average RGB color
-    private SKColor[,] GetAverageColorGrid(SKBitmap bitmap, SKRectI bounds)
-    {
-        var rgbGrid = new SKColor[quadrantDivisionCount, quadrantDivisionCount];
-        int xDivisionSize = bounds.Width / quadrantDivisionCount;
-        int yDivisionSize = bounds.Height / quadrantDivisionCount;
-
-        for (int yDivisionIndex = 0; yDivisionIndex < quadrantDivisionCount; yDivisionIndex++) {
-            for (int xDivisionIndex = 0; xDivisionIndex < quadrantDivisionCount; xDivisionIndex++) {
-
-                int pixelCount = 0;
-                int totalR = 0, totalG = 0, totalB = 0;
-
-                for (int y = yDivisionIndex * yDivisionSize; y < (yDivisionIndex + 1) * yDivisionSize; y++) {
-                    for (int x = xDivisionIndex * xDivisionSize; x < (xDivisionIndex + 1) * xDivisionSize; x++) {
-
-                        var pixel = bitmap.GetPixel(x + bounds.Left, y + bounds.Top);
-
-                        totalR += pixel.Red;
-                        totalG += pixel.Green;
-                        totalB += pixel.Blue;
-                        pixelCount++;
+                //Divide the input image into separate tile sections and calculate the average pixel value for each one
+                for (int yTileIndex = 0; yTileIndex < yTileCount; yTileIndex++) {
+                    for (int xTileIndex = 0; xTileIndex < xTileCount; xTileIndex++) {
+                        var rect = SKRectI.Create(xTileIndex * tileWidth, yTileIndex * tileHeight, tileWidth, tileHeight);
+                        inputImageRGBGrid[xTileIndex, yTileIndex] = GetAverageColorGrid(bitmap, rect);
+                        quadrantsCompleted += (quadrantDivisionCount * quadrantDivisionCount);
                     }
                 }
-
-                var finalR = (byte)(totalR / pixelCount);
-                var finalG = (byte)(totalG / pixelCount);
-                var finalB = (byte)(totalB / pixelCount);
-
-                rgbGrid[xDivisionIndex, yDivisionIndex] = new SKColor(finalR, finalG, finalB);
             }
         }
 
-        return rgbGrid;
-    }
+        // Convert tile images to average color
+        public void ProcessTileColors(string sourceImageFolder)
+        {
+            tileImageRGBGridList = new List<(string, SKColor[,])>();
 
-}
+            foreach (var file in Directory.GetFiles(sourceImageFolder)) {
 
+                using (var inputStream = File.OpenRead(file))
+                using (var skStream = new SKManagedStream(inputStream))
+                using (var bitmap = SKBitmap.Decode(skStream)) {
 
-#if false
-public class FlickrTileProvider
-{
-#region Private members
-    private const int maxImageCount = 100;
-    private const string tagFilter = "";
-    private Action<int, string> progressCallback;
-    private const string apiKey = "6dba7971b2abf352b9dcd48a2e5a5921";
-#endregion
-
-    private const string searchQueryString = "http://flickr.com/services/rest/?api_key={0}&method=flickr.photos.search&tags={1}&tag_mode={2}&sort=date-posted-asc&{3}per_page=100&page={4}";
-
-    public static string GetFlickrUri(string tags)
-    {
-        return String.Format(searchQueryString, apiKey, tags, tagFilter, "", 0);
-    }
-
-    public static async Task<List<string>> FetchImagesAsync(IList<PhotoInfo> imageList, CancellationToken cancel = default(CancellationToken))
-    {
-        // Download matching images that are not yet cached:
-        int totalImageCount = imageList.Count;
-        int currentImageCount = 0;
-        string imageUrl = "http://farm{0}.static.flickr.com/{1}/{2}_{3}.jpg";
-        string localFileFormat = "{0}_{1}_{2}_{3}.jpg";
-        var folder = MosaicBuilder.DownloadFolder;
-        var tasks = new List<Task>();
-        var files = new List<string>();
-
-        await Task.Run(async () => {
-            for (int i = 0; i < imageList.Count; i++) {
-                int imageID = i;
-
-                var localFileName = string.Format(localFileFormat, imageList[imageID].Farm, imageList[imageID].Server, imageList[imageID].ID, imageList[imageID].Secret);
-
-                try {
-                    var localFile = Path.GetFullPath(Path.Combine(folder, localFileName));
-                    files.Add(localFile);
-
-                    continue;   // Skip downloading file if it already exists
+                    var rect = SKRectI.Create(0, 0, bitmap.Width, bitmap.Height);
+                    tileImageRGBGridList.Add((file, GetAverageColorGrid(bitmap, rect)));
                 }
-                catch (Exception) { }
+            }
+        }
 
-                // For demo purposes, do not download new images:
-                //continue;
+        // Returns the best match image per tile area
+        public string GetImageForTile(int xIndex, int yIndex, List<string> excludedImageFiles)
+        {
+            var tileDistances = new List<(double, string)>();
 
-                try {
-                    var uri = new Uri(string.Format(imageUrl, imageList[imageID].Farm, imageList[imageID].Server, imageList[imageID].ID, imageList[imageID].Secret));
-                    var client = new HttpClient() { MaxResponseContentBufferSize = Int32.MaxValue };
-                    var response = await client.SendAsync(new HttpRequestMessage(HttpMethod.Get, uri), cancel);
-                    var imageBytes = await response.Content.ReadAsByteArrayAsync();
+            foreach (var tileGrid in tileImageRGBGridList) {
+                double distance = 0;
 
-                    var localFile = await folder.CreateFileAsync(localFileName);
-                    using (var fileStream = await localFile.OpenAsync(FileAccessMode.ReadWrite)) {
-                        var outputStream = fileStream.GetOutputStreamAt(0);
-                        var writer = new DataWriter(outputStream);
-                        writer.WriteBytes(imageBytes);
-                        await writer.StoreAsync();
-                        await outputStream.FlushAsync();
+                for (int x = 0; x < quadrantDivisionCount; x++)
+                    for (int y = 0; y < quadrantDivisionCount; y++) {
+                        distance +=
+                            Math.Sqrt(
+                                Math.Abs(Math.Pow(tileGrid.Item2[x, y].Red, 2) - Math.Pow(inputImageRGBGrid[xIndex, yIndex][x, y].Red, 2)) +
+                                Math.Abs(Math.Pow(tileGrid.Item2[x, y].Green, 2) - Math.Pow(inputImageRGBGrid[xIndex, yIndex][x, y].Green, 2)) +
+                                Math.Abs(Math.Pow(tileGrid.Item2[x, y].Blue, 2) - Math.Pow(inputImageRGBGrid[xIndex, yIndex][x, y].Blue, 2)));
                     }
 
-                    files.Add(localFile);
-                }
-                catch (OperationCanceledException) {
-                    throw;
-                }
-                catch (Exception) { }
-
-                if (i % 10 == 0)
-                    GC.Collect();
-
-                currentImageCount++;
-                cancel.ThrowIfCancellationRequested();
+                tileDistances.Add((distance, tileGrid.Item1));
             }
-        });
 
-        return files;
+            var sorted = tileDistances
+                 .Where(x => !excludedImageFiles.Contains(x.Item2)) // remove items from excluded list
+                .OrderBy(item => item.Item1); // sort by best match
+
+            return sorted.First().Item2;
+        }
+
+        // Converts a portion of the base image to an average RGB color
+        private SKColor[,] GetAverageColorGrid(SKBitmap bitmap, SKRectI bounds)
+        {
+            var rgbGrid = new SKColor[quadrantDivisionCount, quadrantDivisionCount];
+            int xDivisionSize = bounds.Width / quadrantDivisionCount;
+            int yDivisionSize = bounds.Height / quadrantDivisionCount;
+
+            for (int yDivisionIndex = 0; yDivisionIndex < quadrantDivisionCount; yDivisionIndex++) {
+                for (int xDivisionIndex = 0; xDivisionIndex < quadrantDivisionCount; xDivisionIndex++) {
+
+                    int pixelCount = 0;
+                    int totalR = 0, totalG = 0, totalB = 0;
+
+                    for (int y = yDivisionIndex * yDivisionSize; y < (yDivisionIndex + 1) * yDivisionSize; y++) {
+                        for (int x = xDivisionIndex * xDivisionSize; x < (xDivisionIndex + 1) * xDivisionSize; x++) {
+
+                            var pixel = bitmap.GetPixel(x + bounds.Left, y + bounds.Top);
+
+                            totalR += pixel.Red;
+                            totalG += pixel.Green;
+                            totalB += pixel.Blue;
+                            pixelCount++;
+                        }
+                    }
+
+                    var finalR = (byte)(totalR / pixelCount);
+                    var finalG = (byte)(totalG / pixelCount);
+                    var finalB = (byte)(totalB / pixelCount);
+
+                    rgbGrid[xDivisionIndex, yDivisionIndex] = new SKColor(finalR, finalG, finalB);
+                }
+            }
+
+            return rgbGrid;
+        }
     }
-
-    public static IList<PhotoInfo> ParsePhotosFromXML(string xml)
-    {
-        var root = XElement.Parse(xml);
-        var photos = (from photo in root.Element("photos").Elements("photo")
-                      select new PhotoInfo {
-                          ID = (string)photo.Attribute("id"),
-                          Secret = (string)photo.Attribute("secret"),
-                          Server = (string)photo.Attribute("server"),
-                          Farm = (string)photo.Attribute("farm")
-                      }).Take(100);
-        return photos.ToList();
-    }
-
-    /// <summary>
-    /// Sets the progress callback
-    /// </summary>
-    /// <param name="progressCallback"></param>
-    public void SetProgressCallBack(Action<int, string> progressCallback)
-    {
-        this.progressCallback = progressCallback;
-    }
-
-    /// <summary>
-    /// Object for containing image info
-    /// </summary>
 }
 
-public class PhotoInfo
-{
-    public string ID { get; set; }
-    public string Secret { get; set; }
-    public string Server { get; set; }
-    public string Farm { get; set; }
-}
-#endif
 
