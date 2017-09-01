@@ -3,6 +3,8 @@
   "Values": {
     "AzureWebJobsStorage": "",
     "AzureWebJobsDashboard": "",
-    "SearchAPIKey": "<KEY FROM BING SEARCH API>"
+    "SearchAPIKey": "<KEY FROM BING SEARCH API>",
+    "MosaicTileWidth": "32",
+    "MosaicTileHeight": "32"
   }
 }
