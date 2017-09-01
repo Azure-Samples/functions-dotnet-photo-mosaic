@@ -20,7 +20,7 @@ namespace BingImageDownloader
         private const string SearchApiKeyName = "SearchAPIKey";
         private const string BingSearchUri = "https://api.cognitive.microsoft.com/bing/v5.0/search";
 
-        public static async Task<List<string>> GetImageResultsAsync(string query)
+        public static async Task<List<string>> GetImageResultsAsync(string query, TraceWriter log)
         {
             var result = new List<string>();
 
@@ -49,13 +49,16 @@ namespace BingImageDownloader
                     var resultString = await response.Content.ReadAsStringAsync();
                     var resultObject = JObject.Parse(resultString);
 
+                    if (resultObject == null) {
+                        log.Info("ERROR: No results from image search");
+                    }
+
                     var images = resultObject["images"]["value"];
 
                     foreach (var imageInfo in images) {
-                        result.Add(imageInfo["contentUrl"].ToString());
+                        result.Add(imageInfo["thumbnailUrl"].ToString());
                     }
                 }
-
             }
             catch (Exception e) {
 
@@ -68,12 +71,18 @@ namespace BingImageDownloader
         {
             var httpClient = new HttpClient();
 
+            var tileWidth = Environment.GetEnvironmentVariable("MosaicTileWidth");
+            var tileHeight = Environment.GetEnvironmentVariable("MosaicTileHeight");
+
             foreach (var url in imageUrls) {
                 try {
-                    var responseStream = await httpClient.GetStreamAsync(url);
+                    var resizedUrl = $"{url}&w={tileWidth}&h={tileHeight}&c=7";
+                    var responseStream = await httpClient.GetStreamAsync(resizedUrl);
+
+                    var outputFilename = Guid.NewGuid().ToString() + ".jpg";
 
                     var dir = outputContainer.GetDirectoryReference(queryId);
-                    var blob = dir.GetBlockBlobReference(Guid.NewGuid().ToString() + ".jpg");
+                    var blob = dir.GetBlockBlobReference(outputFilename);
                     await blob.UploadFromStreamAsync(responseStream);
                 }
                 catch (Exception) {
@@ -94,7 +103,7 @@ namespace BingImageDownloader
                 .Value;
 
             if (query != null) {
-                var imageUrls = await GetImageResultsAsync(query);
+                var imageUrls = await GetImageResultsAsync(query, log);
                 await DownloadImagesAsync(query.GetHashCode().ToString(), imageUrls, outputContainer);
 
                 return req.CreateResponse(HttpStatusCode.OK, "Done");

@@ -1,10 +1,12 @@
-﻿using SkiaSharp;
+﻿using Microsoft.Azure.WebJobs;
+using Microsoft.WindowsAzure.Storage.Blob;
+using SkiaSharp;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 
-namespace MosaicMaker
+namespace BingImageDownloader
 {
     public static class MosaicBuilder
     {
@@ -15,86 +17,54 @@ namespace MosaicMaker
         public static int DitheringRadius { get; set; }
         public static int ScaleMultiplier { get; set; }
 
-        public static string RootFolder { get; set; }
-        public static string DownloadFolder { get; set; }
-        public static string ScaledFolder { get; set; }
-
-        public static string CreateMosaic(string baseImageFile, List<string> tileImages)
+        public class MosaicRequest
         {
-            MosaicBuilder.TileHeight = 20;
-            MosaicBuilder.TileWidth = 20;
+            public string SourceContainer { get; set; }
+            public string SourceBlob { get; set; }
+            public string TileImageContainer { get; set; }
+            public string TileDirectory { get; set; }
+            public string OutputName { get; set; }
+        }
+
+        [FunctionName("CreateMosaic")]
+        public static void CreateMosaic(
+            [QueueTrigger("generate-mosaic")] MosaicRequest mosaicRequest,
+            [Blob("{SourceContainer}/{SourceBlob}", FileAccess.Read)] Stream sourceImage,
+            [Blob("{TileImageContainer}")] CloudBlobContainer tileContainer,
+            [Blob("mosaic-output/{OutputName}", FileAccess.Write)] Stream outputStream)
+        {
+            MosaicBuilder.TileHeight = int.Parse(Environment.GetEnvironmentVariable("MosaicTileWidth"));
+            MosaicBuilder.TileWidth = int.Parse(Environment.GetEnvironmentVariable("MosaicTileHeight"));
             MosaicBuilder.DitheringRadius = -1;
             MosaicBuilder.ScaleMultiplier = 1;
 
-            MatchingTileProvider.SetInputImage(baseImageFile);
+            var directory = tileContainer.GetDirectoryReference(mosaicRequest.TileDirectory);
+            var blobs = directory.ListBlobs(true);
+            var tileImages = new List<byte[]>();
+
+            foreach (var b in blobs) {
+                if (b.GetType() == typeof(CloudBlockBlob)) {
+                    var blob = (CloudBlockBlob)b;
+                    blob.FetchAttributes();
+
+                    var bytes = new byte[blob.Properties.Length];
+                    blob.DownloadToByteArray(bytes, 0);
+
+                    tileImages.Add(bytes);
+                }
+            }
+
+            MatchingTileProvider.SetSourceStream(sourceImage);
 
             MatchingTileProvider.ProcessInputImageColors(MosaicBuilder.TileWidth, MosaicBuilder.TileHeight);
+            MatchingTileProvider.ProcessTileColors(tileImages);
 
-            CropAndScaleTileImages();
-            MatchingTileProvider.ProcessTileColors(ScaledFolder);
+            GenerateMosaic(sourceImage, tileImages, outputStream);
 
-            return GenerateMosaic(baseImageFile, tileImages);
+            // TODO: dispose bitmaps and streams
         }
 
-        public static void CropAndScaleTileImages()
-        {
-            var files = Directory.GetFiles(DownloadFolder);
-            float aspectRatio = (float)TileWidth / TileHeight;
-
-            foreach (var f in files) {
-
-                var filename = Path.GetFileName(f);
-
-                string targetFile = Path.Combine(ScaledFolder, filename);
-                if (!File.Exists(targetFile)) { // Scale only if the output file doesn't exist
-                    ResizeAndCropImage(DownloadFolder, ScaledFolder, filename, aspectRatio);
-                }
-            }
-        }
-
-        private static void ResizeAndCropImage(string inputFolder, string outputFolder, string inputFilename, float aspectRatio)
-        {
-            var inputPath = Path.Combine(inputFolder, inputFilename);
-
-            using (var inputStream = File.OpenRead(inputPath))
-            using (var skStream = new SKManagedStream(inputStream))  // decode the bitmap from the stream
-            using (var bitmap = SKBitmap.Decode(skStream))
-            using (var outBitmap = new SKBitmap(TileWidth * ScaleMultiplier, TileHeight * ScaleMultiplier, SKImageInfo.PlatformColorType, SKAlphaType.Premul))
-            using (var canvas = new SKCanvas(outBitmap)) {
-
-                canvas.DrawColor(SKColors.White); // clear the canvas / fill with white
-
-                int newTileWidth = bitmap.Width;
-                int newTileHeight = bitmap.Height;
-                int xpos = 0, ypos = 0;
-
-                // crop based on aspect ratio
-                double imageAspectRatio = (float)bitmap.Width / bitmap.Height;
-                if (imageAspectRatio != aspectRatio) {
-                    if (imageAspectRatio > aspectRatio) {
-                        xpos = (bitmap.Width - bitmap.Height) / 2;
-                        newTileWidth = (int)(newTileHeight * aspectRatio);
-                    }
-                    else {
-                        ypos = (bitmap.Height - bitmap.Width) / 2;
-                        newTileHeight = (int)(newTileWidth / aspectRatio);
-                    }
-                }
-
-                using (var croppedBitmap = new SKBitmap(newTileWidth, newTileHeight)) {
-                    bitmap.ExtractSubset(croppedBitmap, SKRectI.Create(xpos, ypos, newTileWidth, newTileHeight));
-                    croppedBitmap.Resize(outBitmap, SKBitmapResizeMethod.Lanczos3);
-
-                    var outputPath = Path.Combine(outputFolder, inputFilename);
-
-                    using (var outImage = SKImage.FromBitmap(outBitmap)) {
-                        SaveImage(outputPath, outImage);
-                    }
-                }
-            }
-        }
-
-        private static void SaveImage(string fullPath, SKImage outImage)
+        public static void SaveImage(string fullPath, SKImage outImage)
         {
             var imageBytes = outImage.Encode(SKEncodedImageFormat.Jpeg, 80);
             using (var outStream = new FileStream(fullPath, FileMode.Create, FileAccess.Write)) {
@@ -102,28 +72,24 @@ namespace MosaicMaker
             }
         }
 
-        private static string GenerateMosaic(string baseImageFile, List<string> tileImages)
+        private static void GenerateMosaic(Stream inputStream, List<byte[]> tileImages, Stream outputStream)
         {
-            string[,] mosaicTileGrid;
+            SKBitmap[,] mosaicTileGrid;
 
-            var filename = Path.GetFileNameWithoutExtension(baseImageFile);
-            var extension = Path.GetExtension(baseImageFile);
+            inputStream.Seek(0, SeekOrigin.Begin);
 
-            var outputPath = Path.Combine(RootFolder, $"{filename}.output{extension}");
-
-            using (var inputStream = File.OpenRead(baseImageFile))
             using (var skStream = new SKManagedStream(inputStream))
             using (var bitmap = SKBitmap.Decode(skStream)) {
 
                 // use transparency for the source image overlay
                 var srcImagePaint = new SKPaint() { Color = SKColors.White.WithAlpha(200) };
 
-                int xTileCount = bitmap.Width  / MosaicBuilder.TileWidth;
+                int xTileCount = bitmap.Width / MosaicBuilder.TileWidth;
                 int yTileCount = bitmap.Height / MosaicBuilder.TileHeight;
 
                 int tileCount = xTileCount * yTileCount;
 
-                mosaicTileGrid = new string[xTileCount, yTileCount];
+                mosaicTileGrid = new SKBitmap[xTileCount, yTileCount];
 
                 int finalTileWidth = MosaicBuilder.TileWidth * MosaicBuilder.ScaleMultiplier;
                 int finalTileHeight = MosaicBuilder.TileHeight * MosaicBuilder.ScaleMultiplier;
@@ -158,27 +124,21 @@ namespace MosaicMaker
                     tileList.RemoveAt(nextIndex);
 
                     // get the tile image for this point
-                    var exclusionList = GetExclusionList(mosaicTileGrid, tileInfo.Item1, tileInfo.Item2);
-                    var tileImageFile = MatchingTileProvider.GetImageForTile(tileInfo.Item1, tileInfo.Item2, exclusionList);
-                    mosaicTileGrid[tileInfo.Item1, tileInfo.Item2] = tileImageFile;
+                    //var exclusionList = GetExclusionList(mosaicTileGrid, tileInfo.Item1, tileInfo.Item2);
+                    var tileBitmap = MatchingTileProvider.GetImageForTile(tileInfo.Item1, tileInfo.Item2);
+                    mosaicTileGrid[tileInfo.Item1, tileInfo.Item2] = tileBitmap;
 
-                    // get a bitmap for the tile image
-                    using (var tileFileStream = File.OpenRead(tileImageFile))
-                    using (var tileImageStream = new SKManagedStream(tileFileStream))
-                    using (var tileBitmap = SKBitmap.Decode(tileImageStream)) {
-
-                        // draw the tile on the surface at the coordinates
-                        SKRect tileRect = SKRect.Create(tileInfo.Item1 * TileWidth, tileInfo.Item2 * TileHeight, finalTileWidth, finalTileHeight);
-                        surface.Canvas.DrawBitmap(tileBitmap, tileRect);
-                    }
+                    // draw the tile on the surface at the coordinates
+                    SKRect tileRect = SKRect.Create(tileInfo.Item1 * TileWidth, tileInfo.Item2 * TileHeight, finalTileWidth, finalTileHeight);
+                    surface.Canvas.DrawBitmap(tileBitmap, tileRect);
                 }
 
                 surface.Canvas.Restore(); // merge layers
                 surface.Canvas.Flush();
-                SaveImage(outputPath, surface.Snapshot());
-            }
 
-            return outputPath;
+                var imageBytes = surface.Snapshot().Encode(SKEncodedImageFormat.Jpeg, 80);
+                imageBytes.SaveTo(outputStream);
+            }
         }
 
         private static List<string> GetExclusionList(string[,] mosaicTileGrid, int xIndex, int yIndex)
@@ -204,19 +164,18 @@ namespace MosaicMaker
     public class QuadrantMatchingTileProvider
     {
         internal static int quadrantDivisionCount = 1;
-        private string inputFile;
+        private Stream inputStream;
         private SKColor[,][,] inputImageRGBGrid;
-        private List<(string, SKColor[,])> tileImageRGBGridList;
+        private List<(SKBitmap, SKColor[,])> tileImageRGBGridList;
 
-        public void SetInputImage(string inputFile)
+        public void SetSourceStream(Stream inputStream)
         {
-            this.inputFile = inputFile;
+            this.inputStream = inputStream;
         }
 
         // Preprocess the quadrants of the input image
         public void ProcessInputImageColors(int tileWidth, int tileHeight)
         {
-            using (var inputStream = File.OpenRead(inputFile))
             using (var skStream = new SKManagedStream(inputStream))
             using (var bitmap = SKBitmap.Decode(skStream)) {
 
@@ -242,26 +201,23 @@ namespace MosaicMaker
         }
 
         // Convert tile images to average color
-        public void ProcessTileColors(string sourceImageFolder)
+        public void ProcessTileColors(List<byte[]> tileImages)
         {
-            tileImageRGBGridList = new List<(string, SKColor[,])>();
+            tileImageRGBGridList = new List<(SKBitmap, SKColor[,])>();
 
-            foreach (var file in Directory.GetFiles(sourceImageFolder)) {
+            foreach (var bytes in tileImages) {
 
-                using (var inputStream = File.OpenRead(file))
-                using (var skStream = new SKManagedStream(inputStream))
-                using (var bitmap = SKBitmap.Decode(skStream)) {
+                var bitmap = SKBitmap.Decode(bytes);
 
-                    var rect = SKRectI.Create(0, 0, bitmap.Width, bitmap.Height);
-                    tileImageRGBGridList.Add((file, GetAverageColorGrid(bitmap, rect)));
-                }
+                var rect = SKRectI.Create(0, 0, bitmap.Width, bitmap.Height);
+                tileImageRGBGridList.Add((bitmap, GetAverageColorGrid(bitmap, rect)));
             }
         }
 
         // Returns the best match image per tile area
-        public string GetImageForTile(int xIndex, int yIndex, List<string> excludedImageFiles)
+        public SKBitmap GetImageForTile(int xIndex, int yIndex)
         {
-            var tileDistances = new List<(double, string)>();
+            var tileDistances = new List<(double, SKBitmap)>();
 
             foreach (var tileGrid in tileImageRGBGridList) {
                 double distance = 0;
@@ -279,7 +235,7 @@ namespace MosaicMaker
             }
 
             var sorted = tileDistances
-                 .Where(x => !excludedImageFiles.Contains(x.Item2)) // remove items from excluded list
+                //.Where(x => !excludedImageFiles.Contains(x.Item2)) // remove items from excluded list
                 .OrderBy(item => item.Item1); // sort by best match
 
             return sorted.First().Item2;
