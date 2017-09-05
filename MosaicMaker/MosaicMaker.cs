@@ -1,5 +1,7 @@
 ﻿using Microsoft.Azure.WebJobs;
+using Microsoft.Azure.WebJobs.Extensions.Http;
 using Microsoft.Azure.WebJobs.Host;
+using Microsoft.ProjectOxford.Vision;
 using Microsoft.WindowsAzure.Storage.Blob;
 using SkiaSharp;
 using System;
@@ -12,35 +14,70 @@ namespace BingImageDownloader
 {
     public static class MosaicBuilder
     {
+        private static readonly string VisionServiceApiKey = Environment.GetEnvironmentVariable("MicrosoftVisionApiKey");
+
         public static int TileHeight { get; set; }
         public static int TileWidth { get; set; }
         public static int DitheringRadius { get; set; }
         public static int ScaleMultiplier { get; set; }
 
+        [FunctionName("RequestMosaic")]
+        [return: Queue("generate-mosaic")]
+        public static MosaicRequest RequestImageProcessing(
+            [HttpTrigger(AuthorizationLevel.Anonymous, new string[] { "POST" })] MosaicRequest input, 
+            TraceWriter log)
+        {
+            return input;
+        }
+
+        [FunctionName("Settings")]
+        public static SettingsMessage Settings(
+            [HttpTrigger(AuthorizationLevel.Anonymous, new string[] { "GET" })] string input, 
+            TraceWriter log)
+        {
+            string stage = (Environment.GetEnvironmentVariable("STAGE") == null) ? "LOCAL" : Environment.GetEnvironmentVariable("STAGE");
+            return new SettingsMessage() {
+                Stage = stage,
+                SiteURL = Environment.GetEnvironmentVariable("SITEURL"),
+                StorageURL = Environment.GetEnvironmentVariable("STORAGE_URL"),
+                ContainerSAS = Environment.GetEnvironmentVariable("CONTAINER_SAS"),
+                InputContainerName = Environment.GetEnvironmentVariable("input-container"),
+                OutputContainerName = Environment.GetEnvironmentVariable("output-container")
+            };
+        }
+
         public class MosaicRequest
         {
-            public string ImageQuery { get; set; }
-            public string SourceContainer { get; set; }
-            public string SourceBlob { get; set; }
-            public string TileImageContainer { get; set; }
-            public string OutputBlob { get; set; }
+            public string InputImage { get; set; }
         }
 
         [FunctionName("CreateMosaic")]
         public static async Task CreateMosaicAsync(
         [QueueTrigger("generate-mosaic")] MosaicRequest mosaicRequest,
-        [Blob("{SourceContainer}/{SourceBlob}", FileAccess.Read)] Stream sourceImage,
-        [Blob("{TileImageContainer}")] CloudBlobContainer tileContainer,
-        [Blob("mosaic-output/{OutputBlob}", FileAccess.Write)] Stream outputStream,
+        [Blob("%input-container%/{InputImage}", FileAccess.Read)] Stream sourceImage,
+        [Blob("%tile-image-container%")] CloudBlobContainer tileContainer,
+        [Blob("%output-container%/{InputImage}", FileAccess.Write)] Stream outputStream,
         TraceWriter log)
         {
-            var query = mosaicRequest.ImageQuery;
+            var query = await AnalyzeImageAsync(sourceImage);
+            log.Info($"Image analysis: {query}");
+
+            sourceImage.Seek(0, SeekOrigin.Begin);
+
             var queryDirectory = query.GetHashCode().ToString();
 
             var imageUrls = await DownloadImages.GetImageResultsAsync(query, log);
             await DownloadImages.DownloadImagesAsync(queryDirectory, imageUrls, tileContainer);
 
             GenerateMosaicFromTiles(sourceImage, tileContainer, queryDirectory, outputStream);
+        }
+
+        private static async Task<string> AnalyzeImageAsync(Stream image)
+        {
+            var client = new VisionServiceClient(VisionServiceApiKey);
+            var result = await client.AnalyzeImageAsync(image, new VisualFeature[] { VisualFeature.Description } );
+
+            return result.Description.Tags.FirstOrDefault();
         }
 
         public static void GenerateMosaicFromTiles(
@@ -170,6 +207,16 @@ namespace BingImageDownloader
             //}
 
             return exclusionList;
+        }
+
+        public class SettingsMessage
+        {
+            public string Stage { get; set; }
+            public string SiteURL { get; set; }
+            public string StorageURL { get; set; }
+            public string ContainerSAS { get; set; }
+            public string InputContainerName { get; set; }
+            public string OutputContainerName { get; set; }
         }
     }
 
