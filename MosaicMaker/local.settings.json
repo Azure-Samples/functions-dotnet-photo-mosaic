@@ -1,0 +1,9 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "",
+    "SearchAPIKey": "",
+    "MosaicTileWidth": "20",
+    "MosaicTileHeight": "20"
+  }
+}

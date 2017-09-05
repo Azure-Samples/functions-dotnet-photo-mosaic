@@ -19,4 +19,5 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>
+  <ProjectExtensions><VisualStudio><UserProperties host_1json__JSONSchema="http://json.schemastore.org/host.json" /></VisualStudio></ProjectExtensions>
 </Project>

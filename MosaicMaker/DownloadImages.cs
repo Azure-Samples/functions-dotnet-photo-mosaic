@@ -18,7 +18,7 @@ namespace BingImageDownloader
     {
         private const string SubscriptionKeyHeader = "Ocp-Apim-Subscription-Key";
         private const string SearchApiKeyName = "SearchAPIKey";
-        private const string BingSearchUri = "https://api.cognitive.microsoft.com/bing/v5.0/search";
+        private const string BingSearchUri = "https://api.cognitive.microsoft.com/bing/v5.0/images/search";
 
         public static async Task<List<string>> GetImageResultsAsync(string query, TraceWriter log)
         {
@@ -30,7 +30,7 @@ namespace BingImageDownloader
                 var builder = new UriBuilder(BingSearchUri);
                 var queryParams = HttpUtility.ParseQueryString(string.Empty);
                 queryParams["q"] = query.ToString();
-                queryParams["responseFilter"] = "Images";
+                queryParams["count"] = "100";
 
                 builder.Query = queryParams.ToString();
 
@@ -53,7 +53,7 @@ namespace BingImageDownloader
                         log.Info("ERROR: No results from image search");
                     }
 
-                    var images = resultObject["images"]["value"];
+                    var images = resultObject["value"];
 
                     foreach (var imageInfo in images) {
                         result.Add(imageInfo["thumbnailUrl"].ToString());
@@ -61,13 +61,13 @@ namespace BingImageDownloader
                 }
             }
             catch (Exception e) {
-
+                log.Info($"Exception during image search: {e.Message}");
             }
 
             return result;
         }
 
-        private static async Task DownloadImagesAsync(string queryId, List<string> imageUrls, CloudBlobContainer outputContainer)
+        public static async Task DownloadImagesAsync(string queryId, List<string> imageUrls, CloudBlobContainer outputContainer)
         {
             var httpClient = new HttpClient();
 
@@ -79,10 +79,11 @@ namespace BingImageDownloader
                     var resizedUrl = $"{url}&w={tileWidth}&h={tileHeight}&c=7";
                     var responseStream = await httpClient.GetStreamAsync(resizedUrl);
 
-                    var outputFilename = Guid.NewGuid().ToString() + ".jpg";
+                    var queryString = HttpUtility.ParseQueryString(new Uri(url).Query);
+                    var imageId = queryString["id"] + ".jpg";
 
                     var dir = outputContainer.GetDirectoryReference(queryId);
-                    var blob = dir.GetBlockBlobReference(outputFilename);
+                    var blob = dir.GetBlockBlobReference(imageId);
                     await blob.UploadFromStreamAsync(responseStream);
                 }
                 catch (Exception) {

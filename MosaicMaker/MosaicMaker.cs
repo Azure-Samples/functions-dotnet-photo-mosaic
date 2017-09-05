@@ -1,17 +1,17 @@
 ﻿using Microsoft.Azure.WebJobs;
+using Microsoft.Azure.WebJobs.Host;
 using Microsoft.WindowsAzure.Storage.Blob;
 using SkiaSharp;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 
 namespace BingImageDownloader
 {
     public static class MosaicBuilder
     {
-        private static QuadrantMatchingTileProvider MatchingTileProvider = new QuadrantMatchingTileProvider();
-
         public static int TileHeight { get; set; }
         public static int TileWidth { get; set; }
         public static int DitheringRadius { get; set; }
@@ -19,49 +19,61 @@ namespace BingImageDownloader
 
         public class MosaicRequest
         {
+            public string ImageQuery { get; set; }
             public string SourceContainer { get; set; }
             public string SourceBlob { get; set; }
             public string TileImageContainer { get; set; }
-            public string TileDirectory { get; set; }
-            public string OutputName { get; set; }
+            public string OutputBlob { get; set; }
         }
 
         [FunctionName("CreateMosaic")]
-        public static void CreateMosaic(
-            [QueueTrigger("generate-mosaic")] MosaicRequest mosaicRequest,
-            [Blob("{SourceContainer}/{SourceBlob}", FileAccess.Read)] Stream sourceImage,
-            [Blob("{TileImageContainer}")] CloudBlobContainer tileContainer,
-            [Blob("mosaic-output/{OutputName}", FileAccess.Write)] Stream outputStream)
+        public static async Task CreateMosaicAsync(
+        [QueueTrigger("generate-mosaic")] MosaicRequest mosaicRequest,
+        [Blob("{SourceContainer}/{SourceBlob}", FileAccess.Read)] Stream sourceImage,
+        [Blob("{TileImageContainer}")] CloudBlobContainer tileContainer,
+        [Blob("mosaic-output/{OutputBlob}", FileAccess.Write)] Stream outputStream,
+        TraceWriter log)
         {
-            MosaicBuilder.TileHeight = int.Parse(Environment.GetEnvironmentVariable("MosaicTileWidth"));
-            MosaicBuilder.TileWidth = int.Parse(Environment.GetEnvironmentVariable("MosaicTileHeight"));
-            MosaicBuilder.DitheringRadius = -1;
-            MosaicBuilder.ScaleMultiplier = 1;
+            var query = mosaicRequest.ImageQuery;
+            var queryDirectory = query.GetHashCode().ToString();
 
-            var directory = tileContainer.GetDirectoryReference(mosaicRequest.TileDirectory);
-            var blobs = directory.ListBlobs(true);
-            var tileImages = new List<byte[]>();
+            var imageUrls = await DownloadImages.GetImageResultsAsync(query, log);
+            await DownloadImages.DownloadImagesAsync(queryDirectory, imageUrls, tileContainer);
 
-            foreach (var b in blobs) {
-                if (b.GetType() == typeof(CloudBlockBlob)) {
-                    var blob = (CloudBlockBlob)b;
-                    blob.FetchAttributes();
+            GenerateMosaicFromTiles(sourceImage, tileContainer, queryDirectory, outputStream);
+        }
 
-                    var bytes = new byte[blob.Properties.Length];
-                    blob.DownloadToByteArray(bytes, 0);
+        public static void GenerateMosaicFromTiles(
+            Stream sourceImage, CloudBlobContainer tileContainer, string tileDirectory, Stream outputStream)
+        {
+            using (var tileProvider = new QuadrantMatchingTileProvider()) {
+                MosaicBuilder.TileHeight = int.Parse(Environment.GetEnvironmentVariable("MosaicTileWidth"));
+                MosaicBuilder.TileWidth = int.Parse(Environment.GetEnvironmentVariable("MosaicTileHeight"));
+                MosaicBuilder.DitheringRadius = -1;
+                MosaicBuilder.ScaleMultiplier = 1;
 
-                    tileImages.Add(bytes);
+                var directory = tileContainer.GetDirectoryReference(tileDirectory);
+                var blobs = directory.ListBlobs(true);
+                var tileImages = new List<byte[]>();
+
+                foreach (var b in blobs) {
+                    if (b.GetType() == typeof(CloudBlockBlob)) {
+                        var blob = (CloudBlockBlob)b;
+                        blob.FetchAttributes();
+
+                        var bytes = new byte[blob.Properties.Length];
+                        blob.DownloadToByteArray(bytes, 0);
+
+                        tileImages.Add(bytes);
+                    }
                 }
+
+                tileProvider.SetSourceStream(sourceImage);
+                tileProvider.ProcessInputImageColors(MosaicBuilder.TileWidth, MosaicBuilder.TileHeight);
+                tileProvider.ProcessTileColors(tileImages);
+
+                GenerateMosaic(tileProvider, sourceImage, tileImages, outputStream);
             }
-
-            MatchingTileProvider.SetSourceStream(sourceImage);
-
-            MatchingTileProvider.ProcessInputImageColors(MosaicBuilder.TileWidth, MosaicBuilder.TileHeight);
-            MatchingTileProvider.ProcessTileColors(tileImages);
-
-            GenerateMosaic(sourceImage, tileImages, outputStream);
-
-            // TODO: dispose bitmaps and streams
         }
 
         public static void SaveImage(string fullPath, SKImage outImage)
@@ -72,7 +84,7 @@ namespace BingImageDownloader
             }
         }
 
-        private static void GenerateMosaic(Stream inputStream, List<byte[]> tileImages, Stream outputStream)
+        private static void GenerateMosaic(QuadrantMatchingTileProvider tileProvider, Stream inputStream, List<byte[]> tileImages, Stream outputStream)
         {
             SKBitmap[,] mosaicTileGrid;
 
@@ -125,7 +137,7 @@ namespace BingImageDownloader
 
                     // get the tile image for this point
                     //var exclusionList = GetExclusionList(mosaicTileGrid, tileInfo.Item1, tileInfo.Item2);
-                    var tileBitmap = MatchingTileProvider.GetImageForTile(tileInfo.Item1, tileInfo.Item2);
+                    var tileBitmap = tileProvider.GetImageForTile(tileInfo.Item1, tileInfo.Item2);
                     mosaicTileGrid[tileInfo.Item1, tileInfo.Item2] = tileBitmap;
 
                     // draw the tile on the surface at the coordinates
@@ -161,7 +173,7 @@ namespace BingImageDownloader
         }
     }
 
-    public class QuadrantMatchingTileProvider
+    public class QuadrantMatchingTileProvider : IDisposable
     {
         internal static int quadrantDivisionCount = 1;
         private Stream inputStream;
@@ -275,6 +287,13 @@ namespace BingImageDownloader
             }
 
             return rgbGrid;
+        }
+
+        public void Dispose()
+        {
+            foreach (var tileImage in tileImageRGBGridList) {
+                tileImage.Item1.Dispose();
+            }
         }
     }
 }
