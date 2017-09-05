@@ -3,11 +3,14 @@ using Microsoft.Azure.WebJobs.Extensions.Http;
 using Microsoft.Azure.WebJobs.Host;
 using Microsoft.ProjectOxford.Vision;
 using Microsoft.WindowsAzure.Storage.Blob;
+using Newtonsoft.Json.Linq;
 using SkiaSharp;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Threading.Tasks;
 
 namespace BingImageDownloader
@@ -15,6 +18,7 @@ namespace BingImageDownloader
     public static class MosaicBuilder
     {
         private static readonly string VisionServiceApiKey = Environment.GetEnvironmentVariable("MicrosoftVisionApiKey");
+        private static readonly string ImagePredictionKey = Environment.GetEnvironmentVariable("PredictionApiKey");
 
         public static int TileHeight { get; set; }
         public static int TileWidth { get; set; }
@@ -59,10 +63,19 @@ namespace BingImageDownloader
         [Blob("%output-container%/{InputImage}", FileAccess.Write)] Stream outputStream,
         TraceWriter log)
         {
-            var query = await AnalyzeImageAsync(sourceImage);
-            log.Info($"Image analysis: {query}");
+            var query = "";
 
-            sourceImage.Seek(0, SeekOrigin.Begin);
+            // TODO: if confidence is too low, fall back to vision API
+
+            try {
+                query = await PredictImageAsync(sourceImage);
+            }
+            catch (Exception e) {
+                log.Info($"Custom image failed, trying vision API: {e.Message}");
+                query = await AnalyzeImageAsync(sourceImage);
+            }
+
+            log.Info($"Image analysis: {query}");
 
             var queryDirectory = query.GetHashCode().ToString();
 
@@ -78,6 +91,34 @@ namespace BingImageDownloader
             var result = await client.AnalyzeImageAsync(image, new VisualFeature[] { VisualFeature.Description } );
 
             return result.Description.Tags.FirstOrDefault();
+        }
+
+        static byte[] GetImageAsByteArray(Stream imageStream)
+        {
+            BinaryReader binaryReader = new BinaryReader(imageStream);
+            return binaryReader.ReadBytes((int)imageStream.Length);
+        }
+
+        static async Task<string> PredictImageAsync(Stream imageStream)
+        {
+            var client = new HttpClient();
+            client.DefaultRequestHeaders.Add("Prediction-Key", ImagePredictionKey);
+
+            string url = "https://southcentralus.api.cognitive.microsoft.com/customvision/v1.0/Prediction/a1e73d3c-09d1-4850-b5aa-226b35ae7a8d/image";
+
+            HttpResponseMessage response;
+            byte[] byteData = GetImageAsByteArray(imageStream);
+            imageStream.Seek(0, SeekOrigin.Begin);
+
+            using (var content = new ByteArrayContent(byteData)) {
+                content.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
+                response = await client.PostAsync(url, content);
+
+                var resultString = await response.Content.ReadAsStringAsync();
+                var resultObject = JObject.Parse(resultString);
+
+                return resultObject["Predictions"].First["Tag"].ToString();
+            }
         }
 
         public static void GenerateMosaicFromTiles(

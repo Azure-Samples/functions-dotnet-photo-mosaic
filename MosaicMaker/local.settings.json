@@ -4,12 +4,14 @@
     "AzureWebJobsStorage": "",
     "SearchAPIKey": "",
     "MosaicTileWidth": "20",
-    "MosaicTileHeight": "20"
     "MosaicTileHeight": "20",
+    "MicrosoftVisionApiKey": "",
+    "PredictionApiKey": "",
     "input-container": "input-images",
     "output-container": "mosaic-output",
     "tile-image-container": "tile-images",
     "SITEURL": "http://localhost:7071",
     "STORAGE_URL": "https://donnamstorage.blob.core.windows.net/",
+    "CONTAINER_SAS": ""
   }
 }
