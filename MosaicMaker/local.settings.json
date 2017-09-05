@@ -7,6 +7,7 @@
     "MosaicTileHeight": "20",
     "MicrosoftVisionApiKey": "",
     "PredictionApiKey": "",
+    "PredictionApiUrl": "https://southcentralus.api.cognitive.microsoft.com/customvision/v1.0/Prediction/a1e73d3c-09d1-4850-b5aa-226b35ae7a8d/image",
     "input-container": "input-images",
     "output-container": "mosaic-output",
     "tile-image-container": "tile-images",

@@ -104,7 +104,7 @@ namespace BingImageDownloader
             var client = new HttpClient();
             client.DefaultRequestHeaders.Add("Prediction-Key", ImagePredictionKey);
 
-            string url = "https://southcentralus.api.cognitive.microsoft.com/customvision/v1.0/Prediction/a1e73d3c-09d1-4850-b5aa-226b35ae7a8d/image";
+            string url = Environment.GetEnvironmentVariable("PredictionApiUrl");
 
             HttpResponseMessage response;
             byte[] byteData = GetImageAsByteArray(imageStream);
