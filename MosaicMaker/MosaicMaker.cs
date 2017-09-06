@@ -12,6 +12,7 @@ using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Threading.Tasks;
+using System.Threading;
 
 namespace BingImageDownloader
 {
@@ -82,7 +83,7 @@ namespace BingImageDownloader
             var imageUrls = await DownloadImages.GetImageResultsAsync(query, log);
             await DownloadImages.DownloadImagesAsync(queryDirectory, imageUrls, tileContainer);
 
-            GenerateMosaicFromTiles(sourceImage, tileContainer, queryDirectory, outputStream);
+            await GenerateMosaicFromTiles(sourceImage, tileContainer, queryDirectory, outputStream);
         }
 
         private static async Task<string> AnalyzeImageAsync(Stream image)
@@ -121,7 +122,7 @@ namespace BingImageDownloader
             }
         }
 
-        public static void GenerateMosaicFromTiles(
+        public static async Task GenerateMosaicFromTiles(
             Stream sourceImage, CloudBlobContainer tileContainer, string tileDirectory, Stream outputStream)
         {
             using (var tileProvider = new QuadrantMatchingTileProvider()) {
@@ -131,16 +132,16 @@ namespace BingImageDownloader
                 MosaicBuilder.ScaleMultiplier = 1;
 
                 var directory = tileContainer.GetDirectoryReference(tileDirectory);
-                var blobs = directory.ListBlobs(true);
+                var blobs = await directory.ListBlobsAsync(true, CancellationToken.None);
                 var tileImages = new List<byte[]>();
 
                 foreach (var b in blobs) {
                     if (b.GetType() == typeof(CloudBlockBlob)) {
                         var blob = (CloudBlockBlob)b;
-                        blob.FetchAttributes();
+                        await blob.FetchAttributesAsync();
 
                         var bytes = new byte[blob.Properties.Length];
-                        blob.DownloadToByteArray(bytes, 0);
+                        await blob.DownloadToByteArrayAsync(bytes, 0);
 
                         tileImages.Add(bytes);
                     }

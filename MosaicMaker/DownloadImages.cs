@@ -91,26 +91,5 @@ namespace BingImageDownloader
                 }
             }
         }
-
-        [FunctionName("DownloadImages")]
-        public static async Task<HttpResponseMessage> Run(
-            [HttpTrigger(AuthorizationLevel.Function, "get")] HttpRequestMessage req,
-            [Blob("bing-images")] CloudBlobContainer outputContainer,
-            TraceWriter log)
-        {
-            // parse query parameter
-            string query = req.GetQueryNameValuePairs()
-                .FirstOrDefault(q => string.Compare(q.Key, "query", true) == 0)
-                .Value;
-
-            if (query != null) {
-                var imageUrls = await GetImageResultsAsync(query, log);
-                await DownloadImagesAsync(query.GetHashCode().ToString(), imageUrls, outputContainer);
-
-                return req.CreateResponse(HttpStatusCode.OK, "Done");
-            }
-
-            return req.CreateResponse(HttpStatusCode.NoContent);
-        }
     }
 }
