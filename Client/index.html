@@ -84,10 +84,10 @@
         .card {
             margin: 5px;
             height: 300px;
-            width: 216px;
+            min-width: 216px;
             padding: 2px;
-            border: 2px solid black;
-            border-radius: 5px;
+            /*border: 2px solid black;
+            border-radius: 5px;*/
             display: flex;
             align-items: center;
             justify-content: center;
@@ -158,6 +158,21 @@
                 -o-transform: rotate(0deg) scale(1.5) skew(0deg) translate(0px, -10px);
             }
         }
+        
+        .formInput {
+            margin-bottom: 10px;
+            color: #666;
+        }
+
+        #SearchTerm {
+            font-family: Segoe UI, Frutiger, Frutiger Linotype, Dejavu Sans, Helvetica Neue, Arial, sans-serif;
+            font-size: 90%;
+            color: #2F2D4A;
+            border-radius: 3px;
+            border: 1px solid #666;
+            padding: 2px;
+        }
+
     </style>
     <script src="//ajax.googleapis.com/ajax/libs/jquery/1.7.2/jquery.min.js" type="text/javascript"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dropzone/4.3.0/min/dropzone.min.js" type="text/javascript"></script>
@@ -171,12 +186,13 @@
 <body>
     <div class="wrapper">
         <div class="box header">
-            <h1><span class="fa fa-picture-o"></span> <span id="page-title">Mosaic Generator</span></h1>
+            <h1><span class="fa fa-picture-o"></span> <span id="page-title"><span style="color:RED"><span class="fa fa-exclamation-circle"></span> OFFLINE - Mosaic Generator</span></span></h1>
         </div>
         <div class="box content">
             <hr>
             <h2>1. Upload a photo</h2>
             <div>
+                <div class="formInput"><label for="SearchTerm">(Optional) Search term for image: </label> <input id="SearchTerm" type="text"></input></div>
                 <form class="dropzone needsclick dz-clickable" id="dropzone">
                     <div class="dz-message needsclick">
                         Drop files here or click to upload.<br>
@@ -218,16 +234,12 @@
                         // since Dropzone uses multi-part uploads :(
                         return `${STORAGE_URL}${INPUTCONTAINERNAME}/${files[0].name}${CONTAINER_SAS}`;
                     },
-                    headers: {
-                        "x-ms-blob-type": "BlockBlob",
-                        "Content-Type": "image/jpeg"
-                    },
                     accept: (file, done) => {
-                        if (file.name.endsWith(".jpg")) {
+                        if (file.name.endsWith(".jpg") || file.name.endsWith(".png")) {
                             done();
                         } else {
-                            alert("We only accept files which end with .jpg");
-                            done("We only accept files which end with .jpg");
+                            alert("We only accept files which end with .jpg or .png");
+                            done("We only accept files which end with .jpg or .png");
                         }
                     },
                     clickable: true,
@@ -238,7 +250,7 @@
                         });
                         this.on("addedfile", function (file) {
                             const that = this;
-                            if (!file.name.endsWith(".jpg")) {
+                            if (!(file.name.endsWith(".jpg") || file.name.endsWith(".png"))) {
                                 this.removeFile(file);
                                 return;
                             }
@@ -283,11 +295,22 @@
             }
 
             function uploadFile(file, cb) {
-                const name = generateUUID() + '.jpg'
+                const fileExt = file.name.substring(file.name.lastIndexOf(".")+1);
+                const name = generateUUID() + "." + fileExt
                 const xhr = new XMLHttpRequest();
                 xhr.open("PUT", `${STORAGE_URL}${INPUTCONTAINERNAME}/${name}${CONTAINER_SAS}`);
                 xhr.setRequestHeader('x-ms-blob-type', 'BlockBlob');
-                xhr.setRequestHeader('Content-Type', 'image/jpeg');
+                if(fileExt === "png"){
+                    xhr.setRequestHeader('Content-Type', 'image/png');
+                }
+                else if(fileExt === "jpg") {
+                    xhr.setRequestHeader('Content-Type', 'image/jpeg');
+                }
+                else {
+                    // We santize the input before this, but just incase...
+                    alert("We only accept files which end with .jpg or .png");
+                    throw new Error("Unrecognized File extension: " + fileExt);
+                }
                 xhr.send(file);
                 xhr.onload = (e) => {
                     if (xhr.status > 300) {
@@ -301,11 +324,14 @@
             }
 
             function startImageProcessing(file, cb) {
+                const searchTermElement = document.getElementById("SearchTerm");
+                const searchTermText = searchTermElement.value;
                 const xhr = new XMLHttpRequest();
                 xhr.open("POST", `${SITEURL}/api/RequestMosaic`);
                 xhr.setRequestHeader('Content-Type', 'application/json');
                 xhr.send(JSON.stringify({
                     InputImage: file,
+                    ImageContentString: searchTermText
                 }));
                 xhr.onload = (e) => {
                     if (xhr.status > 300) {
