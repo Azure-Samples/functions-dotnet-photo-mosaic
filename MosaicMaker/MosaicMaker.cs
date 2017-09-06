@@ -32,7 +32,7 @@ namespace MosaicMaker
         [FunctionName("RequestMosaic")]
         [return: Queue("generate-mosaic")]
         public static MosaicRequest RequestImageProcessing(
-            [HttpTrigger(AuthorizationLevel.Anonymous, new string[] { "POST" })] MosaicRequest input, 
+            [HttpTrigger(AuthorizationLevel.Anonymous, new string[] { "POST" })] MosaicRequest input,
             TraceWriter log)
         {
             return input;
@@ -40,7 +40,7 @@ namespace MosaicMaker
 
         [FunctionName("Settings")]
         public static SettingsMessage Settings(
-            [HttpTrigger(AuthorizationLevel.Anonymous, new string[] { "GET" })] string input, 
+            [HttpTrigger(AuthorizationLevel.Anonymous, new string[] { "GET" })] string input,
             TraceWriter log)
         {
             string stage = (Environment.GetEnvironmentVariable("STAGE") == null) ? "LOCAL" : Environment.GetEnvironmentVariable("STAGE");
@@ -62,24 +62,27 @@ namespace MosaicMaker
         [Blob("%output-container%/{InputImage}", FileAccess.Write)] Stream outputStream,
         TraceWriter log)
         {
-            var query = "";
+            var imageKeyword = mosaicRequest.ImageContentString;
 
-            // TODO: if confidence is too low, fall back to vision API
+            if (String.IsNullOrEmpty(mosaicRequest.ImageContentString)) { // no keyword provided, use image recognition
 
-            try {
-                query = await PredictImageAsync(sourceImage);
+                // TODO: if confidence is too low, fall back to vision API
+
+                try {
+                    imageKeyword = await PredictImageAsync(sourceImage);
+                }
+                catch (Exception e) {
+                    log.Info($"Custom image failed, trying vision API: {e.Message}");
+                    imageKeyword = await AnalyzeImageAsync(sourceImage);
+                }
             }
-            catch (Exception e) {
-                log.Info($"Custom image failed, trying vision API: {e.Message}");
-                query = await AnalyzeImageAsync(sourceImage);
-            }
 
-            log.Info($"Image analysis: {query}");
+            log.Info($"Image analysis: {imageKeyword}");
 
-            var queryDirectory = Utilities.GetStableHash(query).ToString();
+            var queryDirectory = Utilities.GetStableHash(imageKeyword).ToString();
             log.Info($"Query hash: {queryDirectory}");
 
-            var imageUrls = await DownloadImages.GetImageResultsAsync(query, log);
+            var imageUrls = await DownloadImages.GetImageResultsAsync(imageKeyword, log);
             await DownloadImages.DownloadImagesAsync(queryDirectory, imageUrls, tileContainer);
 
             GenerateMosaicFromTiles(sourceImage, tileContainer, queryDirectory, outputStream);
@@ -88,13 +91,14 @@ namespace MosaicMaker
         public class MosaicRequest
         {
             public string InputImage { get; set; }
+            public string ImageContentString { get; set; }  // if null or empty, use image recognition on the input image
         }
 
         #region Helpers
         private static async Task<string> AnalyzeImageAsync(Stream image)
         {
             var client = new VisionServiceClient(VisionServiceApiKey);
-            var result = await client.AnalyzeImageAsync(image, new VisualFeature[] { VisualFeature.Description } );
+            var result = await client.AnalyzeImageAsync(image, new VisualFeature[] { VisualFeature.Description });
 
             return result.Description.Tags.FirstOrDefault();
         }
@@ -130,7 +134,8 @@ namespace MosaicMaker
         public static void GenerateMosaicFromTiles(
             Stream sourceImage, CloudBlobContainer tileContainer, string tileDirectory, Stream outputStream)
         {
-            using (var tileProvider = new QuadrantMatchingTileProvider()) {
+            //using (var tileProvider = new QuadrantMatchingTileProvider()) {
+            var tileProvider = new QuadrantMatchingTileProvider();
                 MosaicBuilder.TileHeight = int.Parse(Environment.GetEnvironmentVariable("MosaicTileWidth"));
                 MosaicBuilder.TileWidth = int.Parse(Environment.GetEnvironmentVariable("MosaicTileHeight"));
                 MosaicBuilder.DitheringRadius = -1;
@@ -157,7 +162,7 @@ namespace MosaicMaker
                 tileProvider.ProcessTileColors(tileImages);
 
                 GenerateMosaic(tileProvider, sourceImage, tileImages, outputStream);
-            }
+            //}
         }
 
         public static void SaveImage(string fullPath, SKImage outImage)
@@ -275,6 +280,7 @@ namespace MosaicMaker
         private Stream inputStream;
         private SKColor[,][,] inputImageRGBGrid;
         private List<(SKBitmap, SKColor[,])> tileImageRGBGridList;
+        private Random random = new Random();
 
         public void SetSourceStream(Stream inputStream)
         {
@@ -346,7 +352,9 @@ namespace MosaicMaker
                 //.Where(x => !excludedImageFiles.Contains(x.Item2)) // remove items from excluded list
                 .OrderBy(item => item.Item1); // sort by best match
 
-            return sorted.First().Item2;
+            var rand = random.Next(5);
+            
+            return rand < 4 ? sorted.First().Item2 : sorted.ElementAt(1).Item2;
         }
 
         // Converts a portion of the base image to an average RGB color
@@ -385,12 +393,50 @@ namespace MosaicMaker
             return rgbGrid;
         }
 
-        public void Dispose()
+        #region IDisposable Support
+        private bool disposedValue = false; // To detect redundant calls
+
+        protected virtual void Dispose(bool disposing)
         {
-            foreach (var tileImage in tileImageRGBGridList) {
-                tileImage.Item1.Dispose();
+            if (!disposedValue) {
+                if (disposing) {
+                    // TODO: dispose managed state (managed objects).
+                }
+
+                // TODO: free unmanaged resources (unmanaged objects) and override a finalizer below.
+                foreach (var tileImage in tileImageRGBGridList) {
+                    tileImage.Item1.Dispose();
+                }
+
+                // TODO: set large fields to null.
+
+                disposedValue = true;
             }
         }
+
+        // TODO: override a finalizer only if Dispose(bool disposing) above has code to free unmanaged resources.
+        ~QuadrantMatchingTileProvider()
+        {
+            // Do not change this code. Put cleanup code in Dispose(bool disposing) above.
+            Dispose(false);
+        }
+
+        // This code added to correctly implement the disposable pattern.
+        public void Dispose()
+        {
+            // Do not change this code. Put cleanup code in Dispose(bool disposing) above.
+            Dispose(true);
+            // TODO: uncomment the following line if the finalizer is overridden above.
+            GC.SuppressFinalize(this);
+        }
+        #endregion
+
+        //public void Dispose()
+        //{
+        //    foreach (var tileImage in tileImageRGBGridList) {
+        //        tileImage.Item1.Dispose();
+        //    }
+        //}
     }
 }
 
