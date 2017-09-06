@@ -12,7 +12,7 @@ using Newtonsoft.Json.Linq;
 using System.Web;
 using Microsoft.WindowsAzure.Storage.Blob;
 
-namespace BingImageDownloader
+namespace MosaicMaker
 {
     public static class DownloadImages
     {

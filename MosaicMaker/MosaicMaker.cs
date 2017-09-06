@@ -14,7 +14,7 @@ using System.Net.Http.Headers;
 using System.Threading.Tasks;
 using System.Threading;
 
-namespace BingImageDownloader
+namespace MosaicMaker
 {
     public static class MosaicBuilder
     {
