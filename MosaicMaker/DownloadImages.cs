@@ -11,6 +11,7 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System.Web;
 using Microsoft.WindowsAzure.Storage.Blob;
+using System.Diagnostics;
 
 namespace MosaicMaker
 {
@@ -44,7 +45,7 @@ namespace MosaicMaker
                 request.Headers.Add("User-Agent", "Mozilla/5.0 (compatible; MSIE 10.0; Windows Phone 8.0; Trident/6.0; IEMobile/10.0; ARM; Touch; NOKIA; Lumia 822)");
 
                 var response = await httpClient.SendAsync(request);
-                
+
                 if (response.IsSuccessStatusCode) {
                     var resultString = await response.Content.ReadAsStringAsync();
                     var resultObject = JObject.Parse(resultString);
@@ -77,40 +78,27 @@ namespace MosaicMaker
             foreach (var url in imageUrls) {
                 try {
                     var resizedUrl = $"{url}&w={tileWidth}&h={tileHeight}&c=7";
-                    var responseStream = await httpClient.GetStreamAsync(resizedUrl);
-
                     var queryString = HttpUtility.ParseQueryString(new Uri(url).Query);
                     var imageId = queryString["id"] + ".jpg";
 
                     var dir = outputContainer.GetDirectoryReference(queryId);
                     var blob = dir.GetBlockBlobReference(imageId);
-                    await blob.UploadFromStreamAsync(responseStream);
+
+                    if (!await blob.ExistsAsync()) {
+                        using (var responseStream = await httpClient.GetStreamAsync(resizedUrl)) {
+                            Trace.WriteLine($"Downloading blob: {imageId}");
+                            await blob.UploadFromStreamAsync(responseStream);
+                        }
+                    }
+                    else {
+                        Trace.WriteLine($"Skipping blob download: {imageId}");
+                    }
                 }
-                catch (Exception) {
+                catch (Exception e) {
+                    Trace.WriteLine($"Exception downloading blob: {e.Message}");
                     continue;
                 }
             }
-        }
-
-        [FunctionName("DownloadImages")]
-        public static async Task<HttpResponseMessage> Run(
-            [HttpTrigger(AuthorizationLevel.Function, "get")] HttpRequestMessage req,
-            [Blob("bing-images")] CloudBlobContainer outputContainer,
-            TraceWriter log)
-        {
-            // parse query parameter
-            string query = req.GetQueryNameValuePairs()
-                .FirstOrDefault(q => string.Compare(q.Key, "query", true) == 0)
-                .Value;
-
-            if (query != null) {
-                var imageUrls = await GetImageResultsAsync(query, log);
-                await DownloadImagesAsync(query.GetHashCode().ToString(), imageUrls, outputContainer);
-
-                return req.CreateResponse(HttpStatusCode.OK, "Done");
-            }
-
-            return req.CreateResponse(HttpStatusCode.NoContent);
         }
     }
 }

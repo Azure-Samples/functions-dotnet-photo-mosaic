@@ -17,6 +17,8 @@ namespace MosaicMaker
 {
     public static class MosaicBuilder
     {
+        #region Member variables
+
         private static readonly string VisionServiceApiKey = Environment.GetEnvironmentVariable("MicrosoftVisionApiKey");
         private static readonly string ImagePredictionKey = Environment.GetEnvironmentVariable("PredictionApiKey");
 
@@ -24,6 +26,8 @@ namespace MosaicMaker
         public static int TileWidth { get; set; }
         public static int DitheringRadius { get; set; }
         public static int ScaleMultiplier { get; set; }
+
+        #endregion  
 
         [FunctionName("RequestMosaic")]
         [return: Queue("generate-mosaic")]
@@ -50,11 +54,6 @@ namespace MosaicMaker
             };
         }
 
-        public class MosaicRequest
-        {
-            public string InputImage { get; set; }
-        }
-
         [FunctionName("CreateMosaic")]
         public static async Task CreateMosaicAsync(
         [QueueTrigger("generate-mosaic")] MosaicRequest mosaicRequest,
@@ -77,7 +76,8 @@ namespace MosaicMaker
 
             log.Info($"Image analysis: {query}");
 
-            var queryDirectory = query.GetHashCode().ToString();
+            var queryDirectory = Utilities.GetStableHash(query).ToString();
+            log.Info($"Query hash: {queryDirectory}");
 
             var imageUrls = await DownloadImages.GetImageResultsAsync(query, log);
             await DownloadImages.DownloadImagesAsync(queryDirectory, imageUrls, tileContainer);
@@ -85,6 +85,12 @@ namespace MosaicMaker
             GenerateMosaicFromTiles(sourceImage, tileContainer, queryDirectory, outputStream);
         }
 
+        public class MosaicRequest
+        {
+            public string InputImage { get; set; }
+        }
+
+        #region Helpers
         private static async Task<string> AnalyzeImageAsync(Stream image)
         {
             var client = new VisionServiceClient(VisionServiceApiKey);
@@ -259,6 +265,8 @@ namespace MosaicMaker
             public string InputContainerName { get; set; }
             public string OutputContainerName { get; set; }
         }
+
+        #endregion 
     }
 
     public class QuadrantMatchingTileProvider : IDisposable
