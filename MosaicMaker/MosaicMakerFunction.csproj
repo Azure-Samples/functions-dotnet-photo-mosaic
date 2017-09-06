@@ -2,6 +2,7 @@
   <PropertyGroup>
     <TargetFramework>net461</TargetFramework>
     <Platforms>AnyCPU;x86</Platforms>
+    <RootNamespace>MosaicMaker</RootNamespace>
   </PropertyGroup>
   <ItemGroup>    
     <PackageReference Include="Microsoft.NET.Sdk.Functions" Version="1.0.2" />    
