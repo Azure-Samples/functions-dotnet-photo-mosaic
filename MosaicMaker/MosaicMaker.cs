@@ -279,7 +279,7 @@ namespace MosaicMaker
         internal static int quadrantDivisionCount = 1;
         private Stream inputStream;
         private SKColor[,][,] inputImageRGBGrid;
-        private List<(SKBitmap, SKColor[,])> tileImageRGBGridList;
+        private readonly List<(SKBitmap, SKColor[,])> tileImageRGBGridList = new List<(SKBitmap, SKColor[,])>();
         private Random random = new Random();
 
         public void SetSourceStream(Stream inputStream)
@@ -317,8 +317,6 @@ namespace MosaicMaker
         // Convert tile images to average color
         public void ProcessTileColors(List<byte[]> tileImages)
         {
-            tileImageRGBGridList = new List<(SKBitmap, SKColor[,])>();
-
             foreach (var bytes in tileImages) {
 
                 var bitmap = SKBitmap.Decode(bytes);
@@ -392,51 +390,13 @@ namespace MosaicMaker
 
             return rgbGrid;
         }
-
-        #region IDisposable Support
-        private bool disposedValue = false; // To detect redundant calls
-
-        protected virtual void Dispose(bool disposing)
-        {
-            if (!disposedValue) {
-                if (disposing) {
-                    // TODO: dispose managed state (managed objects).
-                }
-
-                // TODO: free unmanaged resources (unmanaged objects) and override a finalizer below.
-                foreach (var tileImage in tileImageRGBGridList) {
-                    tileImage.Item1.Dispose();
-                }
-
-                // TODO: set large fields to null.
-
-                disposedValue = true;
-            }
-        }
-
-        // TODO: override a finalizer only if Dispose(bool disposing) above has code to free unmanaged resources.
-        ~QuadrantMatchingTileProvider()
-        {
-            // Do not change this code. Put cleanup code in Dispose(bool disposing) above.
-            Dispose(false);
-        }
-
-        // This code added to correctly implement the disposable pattern.
+        
         public void Dispose()
         {
-            // Do not change this code. Put cleanup code in Dispose(bool disposing) above.
-            Dispose(true);
-            // TODO: uncomment the following line if the finalizer is overridden above.
-            GC.SuppressFinalize(this);
+            foreach (var tileImage in tileImageRGBGridList) {
+                tileImage.Item1.Dispose();
+            }
         }
-        #endregion
-
-        //public void Dispose()
-        //{
-        //    foreach (var tileImage in tileImageRGBGridList) {
-        //        tileImage.Item1.Dispose();
-        //    }
-        //}
     }
 }
 
