@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 using Microsoft.Azure.WebJobs.Host.Storage.Blob;
 using Microsoft.WindowsAzure.Storage.Blob;
 
-namespace BingImageDownloader
+namespace MosaicMaker
 {
     internal static class StorageBlobClientExtensions
     {
