@@ -66,13 +66,28 @@ namespace MosaicMaker
 
             if (String.IsNullOrEmpty(mosaicRequest.ImageContentString)) { // no keyword provided, use image recognition
 
-                // TODO: if confidence is too low, fall back to vision API
+                // fall back to regular vision service if PredictionApiUrl is empty, 
+                // or if Custom Vision does not have high confidence
+                bool useFallback = false; 
+                string predictionUrl = Environment.GetEnvironmentVariable("PredictionApiUrl");
 
+                if (String.IsNullOrEmpty(predictionUrl)) { // if no Custom Vision API key was provided, skip it
+                    useFallback = true;
+                }
+               
                 try {
-                    imageKeyword = await PredictImageAsync(sourceImage);
+                    imageKeyword = await PredictImageAsync(predictionUrl, sourceImage, log);
+                    useFallback = String.IsNullOrEmpty(imageKeyword);
                 }
                 catch (Exception e) {
-                    log.Info($"Custom image failed, trying vision API: {e.Message}");
+                    log.Info($"Custom image failed: {e.Message}");
+                    useFallback = true; // on exception, use regular Vision Service
+                }
+
+                if (useFallback) {
+                    log.Info("Falling back to Vision Service");
+
+                    sourceImage.Seek(0, SeekOrigin.Begin);
                     imageKeyword = await AnalyzeImageAsync(sourceImage);
                 }
             }
@@ -100,7 +115,7 @@ namespace MosaicMaker
             var client = new VisionServiceClient(VisionServiceApiKey);
             var result = await client.AnalyzeImageAsync(image, new VisualFeature[] { VisualFeature.Description });
 
-            return result.Description.Tags.FirstOrDefault();
+            return result.Description.Captions.FirstOrDefault().Text;
         }
 
         static byte[] GetImageAsByteArray(Stream imageStream)
@@ -109,12 +124,10 @@ namespace MosaicMaker
             return binaryReader.ReadBytes((int)imageStream.Length);
         }
 
-        static async Task<string> PredictImageAsync(Stream imageStream)
+        static async Task<string> PredictImageAsync(string predictionApiUrl, Stream imageStream, TraceWriter log)
         {
             var client = new HttpClient();
-            client.DefaultRequestHeaders.Add("Prediction-Key", ImagePredictionKey);
-
-            string url = Environment.GetEnvironmentVariable("PredictionApiUrl");
+            client.DefaultRequestHeaders.Add("Prediction-Key", ImagePredictionKey);          
 
             HttpResponseMessage response;
             byte[] byteData = GetImageAsByteArray(imageStream);
@@ -122,12 +135,18 @@ namespace MosaicMaker
 
             using (var content = new ByteArrayContent(byteData)) {
                 content.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
-                response = await client.PostAsync(url, content);
+                response = await client.PostAsync(predictionApiUrl, content);
 
                 var resultString = await response.Content.ReadAsStringAsync();
                 var resultObject = JObject.Parse(resultString);
 
-                return resultObject["Predictions"].First["Tag"].ToString();
+                var prediction = resultObject["Predictions"].First;
+                var probability = prediction["Probability"].ToObject<double>();
+                var tag = prediction["Tag"].ToString();
+
+                log.Info($"Tag: {tag}, Probability {probability}");
+
+                return probability >= 0.1 ? tag : ""; 
             }
         }
 
@@ -285,6 +304,7 @@ namespace MosaicMaker
         public void SetSourceStream(Stream inputStream)
         {
             this.inputStream = inputStream;
+            inputStream.Seek(0, SeekOrigin.Begin);
         }
 
         // Preprocess the quadrants of the input image
