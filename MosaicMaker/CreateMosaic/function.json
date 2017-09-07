@@ -9,5 +9,5 @@
     }
   ],
   "scriptFile": "../MosaicMakerFunction.dll",
-  "entryPoint": "BingImageDownloader.MosaicBuilder.CreateMosaicAsync"
+  "entryPoint": "MosaicMaker.MosaicBuilder.CreateMosaicAsync"
 }

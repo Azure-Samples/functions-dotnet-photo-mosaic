@@ -12,5 +12,5 @@
     }
   ],
   "scriptFile": "../MosaicMakerFunction.dll",
-  "entryPoint": "BingImageDownloader.MosaicBuilder.RequestImageProcessing"
+  "entryPoint": "MosaicMaker.MosaicBuilder.RequestImageProcessing"
 }
