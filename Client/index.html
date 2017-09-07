@@ -7,7 +7,9 @@
     <meta name="author" content="Microsoft">
     <meta name="description" content="Photo mosaic generator">
     <meta name="keywords" content="azure,azure functions,azure cognitive services,coder cards">
-    <link rel="shortcut icon" href="/public/favicon.ico" type="image/vnd.microsoft.icon">
+    <link id="favicon" rel="shortcut icon" type="image/png" href="data:image/png;base64,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
+    ">
+        
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/dropzone/4.3.0/min/dropzone.min.css" type="text/css">
     <style>
         html {
@@ -84,10 +86,10 @@
         .card {
             margin: 5px;
             height: 300px;
-            width: 216px;
+            min-width: 216px;
             padding: 2px;
-            border: 2px solid black;
-            border-radius: 5px;
+            /*border: 2px solid black;
+            border-radius: 5px;*/
             display: flex;
             align-items: center;
             justify-content: center;
@@ -158,6 +160,21 @@
                 -o-transform: rotate(0deg) scale(1.5) skew(0deg) translate(0px, -10px);
             }
         }
+        
+        .formInput {
+            margin-bottom: 10px;
+            color: #666;
+        }
+
+        #SearchTerm {
+            font-family: Segoe UI, Frutiger, Frutiger Linotype, Dejavu Sans, Helvetica Neue, Arial, sans-serif;
+            font-size: 90%;
+            color: #2F2D4A;
+            border-radius: 3px;
+            border: 1px solid #666;
+            padding: 2px;
+        }
+
     </style>
     <script src="//ajax.googleapis.com/ajax/libs/jquery/1.7.2/jquery.min.js" type="text/javascript"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dropzone/4.3.0/min/dropzone.min.js" type="text/javascript"></script>
@@ -171,12 +188,13 @@
 <body>
     <div class="wrapper">
         <div class="box header">
-            <h1><span class="fa fa-picture-o"></span> <span id="page-title">Mosaic Generator</span></h1>
+            <h1><span class="fa fa-picture-o"></span> <span id="page-title"><span style="color:RED"><span class="fa fa-exclamation-circle"></span> OFFLINE - Mosaic Generator</span></span></h1>
         </div>
         <div class="box content">
             <hr>
             <h2>1. Upload a photo</h2>
             <div>
+                <div class="formInput"><label for="SearchTerm">(Optional) Search term for image: </label> <input id="SearchTerm" type="text"></input></div>
                 <form class="dropzone needsclick dz-clickable" id="dropzone">
                     <div class="dz-message needsclick">
                         Drop files here or click to upload.<br>
@@ -218,16 +236,12 @@
                         // since Dropzone uses multi-part uploads :(
                         return `${STORAGE_URL}${INPUTCONTAINERNAME}/${files[0].name}${CONTAINER_SAS}`;
                     },
-                    headers: {
-                        "x-ms-blob-type": "BlockBlob",
-                        "Content-Type": "image/jpeg"
-                    },
                     accept: (file, done) => {
-                        if (file.name.endsWith(".jpg")) {
+                        if (file.name.endsWith(".jpg") || file.name.endsWith(".png")) {
                             done();
                         } else {
-                            alert("We only accept files which end with .jpg");
-                            done("We only accept files which end with .jpg");
+                            alert("We only accept files which end with .jpg or .png");
+                            done("We only accept files which end with .jpg or .png");
                         }
                     },
                     clickable: true,
@@ -238,7 +252,7 @@
                         });
                         this.on("addedfile", function (file) {
                             const that = this;
-                            if (!file.name.endsWith(".jpg")) {
+                            if (!(file.name.endsWith(".jpg") || file.name.endsWith(".png"))) {
                                 this.removeFile(file);
                                 return;
                             }
@@ -283,11 +297,22 @@
             }
 
             function uploadFile(file, cb) {
-                const name = generateUUID() + '.jpg'
+                const fileExt = file.name.substring(file.name.lastIndexOf(".")+1);
+                const name = generateUUID() + "." + fileExt
                 const xhr = new XMLHttpRequest();
                 xhr.open("PUT", `${STORAGE_URL}${INPUTCONTAINERNAME}/${name}${CONTAINER_SAS}`);
                 xhr.setRequestHeader('x-ms-blob-type', 'BlockBlob');
-                xhr.setRequestHeader('Content-Type', 'image/jpeg');
+                if(fileExt === "png"){
+                    xhr.setRequestHeader('Content-Type', 'image/png');
+                }
+                else if(fileExt === "jpg") {
+                    xhr.setRequestHeader('Content-Type', 'image/jpeg');
+                }
+                else {
+                    // We santize the input before this, but just incase...
+                    alert("We only accept files which end with .jpg or .png");
+                    throw new Error("Unrecognized File extension: " + fileExt);
+                }
                 xhr.send(file);
                 xhr.onload = (e) => {
                     if (xhr.status > 300) {
@@ -301,11 +326,14 @@
             }
 
             function startImageProcessing(file, cb) {
+                const searchTermElement = document.getElementById("SearchTerm");
+                const searchTermText = searchTermElement.value;
                 const xhr = new XMLHttpRequest();
                 xhr.open("POST", `${SITEURL}/api/RequestMosaic`);
                 xhr.setRequestHeader('Content-Type', 'application/json');
                 xhr.send(JSON.stringify({
                     InputImage: file,
+                    ImageContentString: searchTermText
                 }));
                 xhr.onload = (e) => {
                     if (xhr.status > 300) {

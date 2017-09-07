@@ -33,7 +33,7 @@ namespace MosaicMaker
         [FunctionName("RequestMosaic")]
         [return: Queue("generate-mosaic")]
         public static MosaicRequest RequestImageProcessing(
-            [HttpTrigger(AuthorizationLevel.Anonymous, new string[] { "POST" })] MosaicRequest input, 
+            [HttpTrigger(AuthorizationLevel.Anonymous, new string[] { "POST" })] MosaicRequest input,
             TraceWriter log)
         {
             return input;
@@ -41,7 +41,7 @@ namespace MosaicMaker
 
         [FunctionName("Settings")]
         public static SettingsMessage Settings(
-            [HttpTrigger(AuthorizationLevel.Anonymous, new string[] { "GET" })] string input, 
+            [HttpTrigger(AuthorizationLevel.Anonymous, new string[] { "GET" })] string input,
             TraceWriter log)
         {
             string stage = (Environment.GetEnvironmentVariable("STAGE") == null) ? "LOCAL" : Environment.GetEnvironmentVariable("STAGE");
@@ -63,24 +63,42 @@ namespace MosaicMaker
         [Blob("%output-container%/{InputImage}", FileAccess.Write)] Stream outputStream,
         TraceWriter log)
         {
-            var query = "";
+            var imageKeyword = mosaicRequest.ImageContentString;
 
-            // TODO: if confidence is too low, fall back to vision API
+            if (String.IsNullOrEmpty(mosaicRequest.ImageContentString)) { // no keyword provided, use image recognition
 
-            try {
-                query = await PredictImageAsync(sourceImage);
+                // fall back to regular vision service if PredictionApiUrl is empty, 
+                // or if Custom Vision does not have high confidence
+                bool useFallback = false; 
+                string predictionUrl = Environment.GetEnvironmentVariable("PredictionApiUrl");
+
+                if (String.IsNullOrEmpty(predictionUrl)) { // if no Custom Vision API key was provided, skip it
+                    useFallback = true;
+                }
+               
+                try {
+                    imageKeyword = await PredictImageAsync(predictionUrl, sourceImage, log);
+                    useFallback = String.IsNullOrEmpty(imageKeyword);
+                }
+                catch (Exception e) {
+                    log.Info($"Custom image failed: {e.Message}");
+                    useFallback = true; // on exception, use regular Vision Service
+                }
+
+                if (useFallback) {
+                    log.Info("Falling back to Vision Service");
+
+                    sourceImage.Seek(0, SeekOrigin.Begin);
+                    imageKeyword = await AnalyzeImageAsync(sourceImage);
+                }
             }
-            catch (Exception e) {
-                log.Info($"Custom image failed, trying vision API: {e.Message}");
-                query = await AnalyzeImageAsync(sourceImage);
-            }
 
-            log.Info($"Image analysis: {query}");
+            log.Info($"Image analysis: {imageKeyword}");
 
-            var queryDirectory = Utilities.GetStableHash(query).ToString();
+            var queryDirectory = Utilities.GetStableHash(imageKeyword).ToString();
             log.Info($"Query hash: {queryDirectory}");
 
-            var imageUrls = await DownloadImages.GetImageResultsAsync(query, log);
+            var imageUrls = await DownloadImages.GetImageResultsAsync(imageKeyword, log);
             await DownloadImages.DownloadImagesAsync(queryDirectory, imageUrls, tileContainer);
 
             await GenerateMosaicFromTiles(sourceImage, tileContainer, queryDirectory, outputStream);
@@ -89,15 +107,16 @@ namespace MosaicMaker
         public class MosaicRequest
         {
             public string InputImage { get; set; }
+            public string ImageContentString { get; set; }  // if null or empty, use image recognition on the input image
         }
 
         #region Helpers
         private static async Task<string> AnalyzeImageAsync(Stream image)
         {
             var client = new VisionServiceClient(VisionServiceApiKey);
-            var result = await client.AnalyzeImageAsync(image, new VisualFeature[] { VisualFeature.Description } );
+            var result = await client.AnalyzeImageAsync(image, new VisualFeature[] { VisualFeature.Description });
 
-            return result.Description.Tags.FirstOrDefault();
+            return result.Description.Captions.FirstOrDefault().Text;
         }
 
         static byte[] GetImageAsByteArray(Stream imageStream)
@@ -106,12 +125,10 @@ namespace MosaicMaker
             return binaryReader.ReadBytes((int)imageStream.Length);
         }
 
-        static async Task<string> PredictImageAsync(Stream imageStream)
+        static async Task<string> PredictImageAsync(string predictionApiUrl, Stream imageStream, TraceWriter log)
         {
             var client = new HttpClient();
-            client.DefaultRequestHeaders.Add("Prediction-Key", ImagePredictionKey);
-
-            string url = Environment.GetEnvironmentVariable("PredictionApiUrl");
+            client.DefaultRequestHeaders.Add("Prediction-Key", ImagePredictionKey);          
 
             HttpResponseMessage response;
             byte[] byteData = GetImageAsByteArray(imageStream);
@@ -119,19 +136,26 @@ namespace MosaicMaker
 
             using (var content = new ByteArrayContent(byteData)) {
                 content.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
-                response = await client.PostAsync(url, content);
+                response = await client.PostAsync(predictionApiUrl, content);
 
                 var resultString = await response.Content.ReadAsStringAsync();
                 var resultObject = JObject.Parse(resultString);
 
-                return resultObject["Predictions"].First["Tag"].ToString();
+                var prediction = resultObject["Predictions"].First;
+                var probability = prediction["Probability"].ToObject<double>();
+                var tag = prediction["Tag"].ToString();
+
+                log.Info($"Tag: {tag}, Probability {probability}");
+
+                return probability >= 0.1 ? tag : ""; 
             }
         }
 
         public static async Task GenerateMosaicFromTiles(
             Stream sourceImage, CloudBlobContainer tileContainer, string tileDirectory, Stream outputStream)
         {
-            using (var tileProvider = new QuadrantMatchingTileProvider()) {
+            //using (var tileProvider = new QuadrantMatchingTileProvider()) {
+            var tileProvider = new QuadrantMatchingTileProvider();
                 MosaicBuilder.TileHeight = int.Parse(Environment.GetEnvironmentVariable("MosaicTileWidth"));
                 MosaicBuilder.TileWidth = int.Parse(Environment.GetEnvironmentVariable("MosaicTileHeight"));
                 MosaicBuilder.DitheringRadius = -1;
@@ -158,7 +182,7 @@ namespace MosaicMaker
                 tileProvider.ProcessTileColors(tileImages);
 
                 GenerateMosaic(tileProvider, sourceImage, tileImages, outputStream);
-            }
+            //}
         }
 
         public static void SaveImage(string fullPath, SKImage outImage)
@@ -275,11 +299,13 @@ namespace MosaicMaker
         internal static int quadrantDivisionCount = 1;
         private Stream inputStream;
         private SKColor[,][,] inputImageRGBGrid;
-        private List<(SKBitmap, SKColor[,])> tileImageRGBGridList;
+        private readonly List<(SKBitmap, SKColor[,])> tileImageRGBGridList = new List<(SKBitmap, SKColor[,])>();
+        private Random random = new Random();
 
         public void SetSourceStream(Stream inputStream)
         {
             this.inputStream = inputStream;
+            inputStream.Seek(0, SeekOrigin.Begin);
         }
 
         // Preprocess the quadrants of the input image
@@ -312,8 +338,6 @@ namespace MosaicMaker
         // Convert tile images to average color
         public void ProcessTileColors(List<byte[]> tileImages)
         {
-            tileImageRGBGridList = new List<(SKBitmap, SKColor[,])>();
-
             foreach (var bytes in tileImages) {
 
                 var bitmap = SKBitmap.Decode(bytes);
@@ -347,7 +371,9 @@ namespace MosaicMaker
                 //.Where(x => !excludedImageFiles.Contains(x.Item2)) // remove items from excluded list
                 .OrderBy(item => item.Item1); // sort by best match
 
-            return sorted.First().Item2;
+            var rand = random.Next(5);
+            
+            return rand < 4 ? sorted.First().Item2 : sorted.ElementAt(1).Item2;
         }
 
         // Converts a portion of the base image to an average RGB color
@@ -385,7 +411,7 @@ namespace MosaicMaker
 
             return rgbGrid;
         }
-
+        
         public void Dispose()
         {
             foreach (var tileImage in tileImageRGBGridList) {
