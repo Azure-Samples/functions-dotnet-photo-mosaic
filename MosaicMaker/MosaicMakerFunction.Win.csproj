@@ -1,0 +1,41 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <BaseNuGetRuntimeIdentifier>win7-x64</BaseNuGetRuntimeIdentifier>
+    <RuntimeIdentifier>win7-x64</RuntimeIdentifier>
+    <RootNamespace>MosaicMaker</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>    
+    <PackageReference Include="Microsoft.Azure.WebJobs" version="3.0.0-beta1-11006" />
+    <PackageReference Include="Microsoft.Azure.WebJobs.Extensions" version="3.0.0-beta1-10516" />
+    <PackageReference Include="Microsoft.Azure.WebJobs.Extensions.Http" version="3.0.0-beta1-10516" />
+    <PackageReference Include="Microsoft.ProjectOxford.Vision" Version="1.0.393" /> 
+    <PackageReference Include="Newtonsoft.Json" version="10.0.3" />
+    <PackageReference Include="SkiaSharp" Version="1.59.1" />
+  </ItemGroup>
+  <ItemGroup>
+    <Reference Include="Microsoft.CSharp" />
+    <Reference Include="System.Web" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Update="host.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="local.settings.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="proxies.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="RequestMosaic/function.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>    
+    <None Update="Settings/function.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>        
+    <None Update="CreateMosaic/function.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>        
+  </ItemGroup>
+  <ProjectExtensions><VisualStudio><UserProperties host_1json__JSONSchema="http://json.schemastore.org/host.json" /></VisualStudio></ProjectExtensions>
+</Project>
