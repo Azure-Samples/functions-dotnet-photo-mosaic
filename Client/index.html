@@ -405,12 +405,12 @@
                         if (typeof xhr.response === "string") {
                             response = JSON.parse(xhr.response);
                         }
-                        STAGE = response.Stage;
-                        SITEURL = isLocal ? response.SiteURL : "";
-                        STORAGE_URL = response.StorageURL;
-                        CONTAINER_SAS = response.ContainerSAS;
-                        INPUTCONTAINERNAME = response.InputContainerName;
-                        OUTPUTCONTAINERNAME = response.OutputContainerName;
+                        STAGE = response.stage;
+                        SITEURL = isLocal ? response.siteURL : "";
+                        STORAGE_URL = response.storageURL;
+                        CONTAINER_SAS = response.containerSAS;
+                        INPUTCONTAINERNAME = response.inputContainerName;
+                        OUTPUTCONTAINERNAME = response.outputContainerName;
                         updateTitle();
                     }
                     xhr.send();

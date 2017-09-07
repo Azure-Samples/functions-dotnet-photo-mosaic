@@ -31,12 +31,13 @@ namespace MosaicMaker
         #endregion  
 
         [FunctionName("RequestMosaic")]
-        [return: Queue("generate-mosaic")]
-        public static MosaicRequest RequestImageProcessing(
+        public static string RequestImageProcessing(
             [HttpTrigger(AuthorizationLevel.Anonymous, new string[] { "POST" })] MosaicRequest input,
+            [Queue("generate-mosaic")] out MosaicRequest queueOutput,
             TraceWriter log)
         {
-            return input;
+            queueOutput = input;
+            return "Mosaic request queued";
         }
 
         [FunctionName("Settings")]
