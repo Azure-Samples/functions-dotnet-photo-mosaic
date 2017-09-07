@@ -1,0 +1,11 @@
+﻿{
+  "$schema": "http://json.schemastore.org/proxies",
+  "proxies": {
+    "root": {
+      "matchCondition": {
+        "route": "/"
+      },
+      "backendUri": "%STORAGE_URL%content/photo-mosaic-index.html"
+    }
+  }
+}

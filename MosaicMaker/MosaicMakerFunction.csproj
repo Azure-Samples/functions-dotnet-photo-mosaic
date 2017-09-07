@@ -20,6 +20,9 @@
     <None Update="local.settings.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <None Update="proxies.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
   <ProjectExtensions><VisualStudio><UserProperties host_1json__JSONSchema="http://json.schemastore.org/host.json" /></VisualStudio></ProjectExtensions>
 </Project>
