@@ -1,7 +1,8 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net461</TargetFramework>
-    <Platforms>AnyCPU;x86</Platforms>
+    <Platform>x86</Platform>
+    <RuntimeIdentifier>win7-x86</RuntimeIdentifier>
     <RootNamespace>MosaicMaker</RootNamespace>
   </PropertyGroup>
   <ItemGroup>    
