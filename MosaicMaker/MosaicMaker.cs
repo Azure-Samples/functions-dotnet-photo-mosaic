@@ -64,27 +64,28 @@ namespace MosaicMaker
         {
             var imageKeyword = mosaicRequest.ImageContentString;
 
+            // fall back to regular vision service if PredictionApiUrl is empty, 
+            // or if Custom Vision does not have high confidence
+            bool noCustomImageSearch = false;
+
             if (String.IsNullOrEmpty(mosaicRequest.ImageContentString)) { // no keyword provided, use image recognition
 
-                // fall back to regular vision service if PredictionApiUrl is empty, 
-                // or if Custom Vision does not have high confidence
-                bool useFallback = false; 
                 string predictionUrl = Environment.GetEnvironmentVariable("PredictionApiUrl");
 
                 if (String.IsNullOrEmpty(predictionUrl)) { // if no Custom Vision API key was provided, skip it
-                    useFallback = true;
+                    noCustomImageSearch = true;
                 }
                
                 try {
                     imageKeyword = await PredictImageAsync(predictionUrl, sourceImage, log);
-                    useFallback = String.IsNullOrEmpty(imageKeyword);
+                    noCustomImageSearch = String.IsNullOrEmpty(imageKeyword);
                 }
                 catch (Exception e) {
                     log.Info($"Custom image failed: {e.Message}");
-                    useFallback = true; // on exception, use regular Vision Service
+                    noCustomImageSearch = true; // on exception, use regular Vision Service
                 }
 
-                if (useFallback) {
+                if (noCustomImageSearch) {
                     log.Info("Falling back to Vision Service");
 
                     sourceImage.Seek(0, SeekOrigin.Begin);
@@ -101,6 +102,8 @@ namespace MosaicMaker
             await DownloadImages.DownloadImagesAsync(queryDirectory, imageUrls, tileContainer);
 
             GenerateMosaicFromTiles(sourceImage, tileContainer, queryDirectory, outputStream);
+
+            Utilities.EmitCustomTelemetry(!noCustomImageSearch, imageKeyword);
         }
 
         public class MosaicRequest
