@@ -333,7 +333,8 @@
                 xhr.setRequestHeader('Content-Type', 'application/json');
                 xhr.send(JSON.stringify({
                     InputImage: file,
-                    ImageContentString: searchTermText
+                    ImageContentString: searchTermText,
+                    TilePixels: 32
                 }));
                 xhr.onload = (e) => {
                     if (xhr.status > 300) {

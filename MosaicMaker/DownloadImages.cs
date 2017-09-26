@@ -68,12 +68,20 @@ namespace MosaicMaker
             return result;
         }
 
-        public static async Task DownloadImagesAsync(string queryId, List<string> imageUrls, CloudBlobContainer outputContainer)
+        public static async Task DownloadImagesAsync(
+            string queryId, List<string> imageUrls, 
+            CloudBlobContainer outputContainer,
+            int tileWidth, int tileHeight)
         {
             var httpClient = new HttpClient();
+            var dir = outputContainer.GetDirectoryReference(queryId);
 
-            var tileWidth = Environment.GetEnvironmentVariable("MosaicTileWidth");
-            var tileHeight = Environment.GetEnvironmentVariable("MosaicTileHeight");
+            var cachedTileCount = dir.ListBlobs(true).Count();
+
+            if (cachedTileCount >= 100) {
+                Trace.WriteLine($"Skipping tile download, have {cachedTileCount} images cached");
+                return;
+            }
 
             foreach (var url in imageUrls) {
                 try {
@@ -81,7 +89,6 @@ namespace MosaicMaker
                     var queryString = HttpUtility.ParseQueryString(new Uri(url).Query);
                     var imageId = queryString["id"] + ".jpg";
 
-                    var dir = outputContainer.GetDirectoryReference(queryId);
                     var blob = dir.GetBlockBlobReference(imageId);
 
                     if (!await blob.ExistsAsync()) {
