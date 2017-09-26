@@ -100,10 +100,14 @@ namespace MosaicMaker
             log.Info($"Query hash: {queryDirectory}");
 
             var imageUrls = await DownloadImages.GetImageResultsAsync(imageKeyword, log);
-            await DownloadImages.DownloadImagesAsync(
+            await DownloadImages.GetBingImagesAsync(
                 queryDirectory, imageUrls, tileContainer, TileWidth, TileHeight);
 
-            GenerateMosaicFromTiles(sourceImage, tileContainer, queryDirectory, outputStream, mosaicRequest.TilePixels);
+            await GenerateMosaicFromTilesAsync(
+                sourceImage, tileContainer, queryDirectory, 
+                outputStream, 
+                mosaicRequest.TilePixels,
+                log);
 
             Utilities.EmitCustomTelemetry(!noCustomImageSearch, imageKeyword);
         }
@@ -156,11 +160,12 @@ namespace MosaicMaker
             }
         }
 
-        public static void GenerateMosaicFromTiles(
+        public static async Task GenerateMosaicFromTilesAsync(
             Stream sourceImage, 
             CloudBlobContainer tileContainer, string tileDirectory, 
             Stream outputStream,
-            int tilePixels)
+            int tilePixels,
+            TraceWriter log)
         {
             using (var tileProvider = new QuadrantMatchingTileProvider()) {
                 MosaicBuilder.TileHeight = int.Parse(Environment.GetEnvironmentVariable("MosaicTileWidth"));
@@ -173,33 +178,47 @@ namespace MosaicMaker
 
                 MosaicBuilder.DitheringRadius = -1;
                 MosaicBuilder.ScaleMultiplier = 1;
-
-                Trace.WriteLine("Downloading tiles images from storage"); 
-
-                var directory = tileContainer.GetDirectoryReference(tileDirectory);
-                var blobs = directory.ListBlobs(true);
-                var tileImages = new List<byte[]>();
-
-                foreach (var b in blobs) {
-                    if (b.GetType() == typeof(CloudBlockBlob)) {
-                        var blob = (CloudBlockBlob)b;
-                        blob.FetchAttributes();
-
-                        var bytes = new byte[blob.Properties.Length];
-                        blob.DownloadToByteArray(bytes, 0);
-
-                        tileImages.Add(bytes);
-                    }
-                }
+                List<byte[]> tileImages = await GetTileImagesAsync(tileContainer, tileDirectory, log);
 
                 tileProvider.SetSourceStream(sourceImage);
                 tileProvider.ProcessInputImageColors(MosaicBuilder.TileWidth, MosaicBuilder.TileHeight);
                 tileProvider.ProcessTileColors(tileImages);
 
-                Trace.WriteLine("Generating mosaic...");
+                log.Info("Generating mosaic...");
+                var start = DateTime.Now;
 
                 GenerateMosaic(tileProvider, sourceImage, tileImages, outputStream);
+
+                log.Info($"Time to generate mosaic: {(DateTime.Now - start).TotalMilliseconds}");
             }
+        }
+
+        private static async Task<List<byte[]>> GetTileImagesAsync(CloudBlobContainer tileContainer, string tileDirectory, TraceWriter log)
+        {
+            var cacheDir = Path.Combine(Path.GetTempPath(), "MosaicCache", tileDirectory);
+            Directory.CreateDirectory(cacheDir);
+            var files = new DirectoryInfo(cacheDir).GetFiles();
+            if (files.Length >= 50) {
+                return files.Select(x=> File.ReadAllBytes(x.FullName)).ToList();
+            }
+
+            log.Info("Downloading tiles images from storage");
+            var start = DateTime.Now;
+
+            var directory = tileContainer.GetDirectoryReference(tileDirectory);
+            var blobs = directory.ListBlobs(true);
+
+            var tasks = blobs.OfType<CloudBlockBlob>().Select(blob => Task.Run(() => {
+                blob.DownloadToFile(Path.Combine(cacheDir, Guid.NewGuid().ToString()), FileMode.Create);
+            }));
+
+            await Task.WhenAll(tasks);
+            files = new DirectoryInfo(cacheDir).GetFiles();
+            var result = files.Select(x => File.ReadAllBytes(x.FullName)).ToList();
+            
+            log.Info($"Total time to fetch tiles {(DateTime.Now - start).TotalMilliseconds}");
+
+            return result;
         }
 
         public static void SaveImage(string fullPath, SKImage outImage)

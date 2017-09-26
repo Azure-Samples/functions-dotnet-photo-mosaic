@@ -68,7 +68,7 @@ namespace MosaicMaker
             return result;
         }
 
-        public static async Task DownloadImagesAsync(
+        public static async Task GetBingImagesAsync(
             string queryId, List<string> imageUrls, 
             CloudBlobContainer outputContainer,
             int tileWidth, int tileHeight)
