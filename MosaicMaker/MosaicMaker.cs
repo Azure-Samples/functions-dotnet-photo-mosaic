@@ -7,6 +7,7 @@ using Newtonsoft.Json.Linq;
 using SkiaSharp;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
@@ -93,15 +94,16 @@ namespace MosaicMaker
                 }
             }
 
-            log.Info($"Image analysis: {imageKeyword}");
+            log.Info($"\n\nImage analysis: {imageKeyword}\n");
 
             var queryDirectory = Utilities.GetStableHash(imageKeyword).ToString();
             log.Info($"Query hash: {queryDirectory}");
 
             var imageUrls = await DownloadImages.GetImageResultsAsync(imageKeyword, log);
-            await DownloadImages.DownloadImagesAsync(queryDirectory, imageUrls, tileContainer);
+            await DownloadImages.DownloadImagesAsync(
+                queryDirectory, imageUrls, tileContainer, TileWidth, TileHeight);
 
-            GenerateMosaicFromTiles(sourceImage, tileContainer, queryDirectory, outputStream);
+            GenerateMosaicFromTiles(sourceImage, tileContainer, queryDirectory, outputStream, mosaicRequest.TilePixels);
 
             Utilities.EmitCustomTelemetry(!noCustomImageSearch, imageKeyword);
         }
@@ -110,6 +112,7 @@ namespace MosaicMaker
         {
             public string InputImage { get; set; }
             public string ImageContentString { get; set; }  // if null or empty, use image recognition on the input image
+            public int TilePixels { get; set; } // override default value in app settings
         }
 
         #region Helpers
@@ -154,14 +157,24 @@ namespace MosaicMaker
         }
 
         public static void GenerateMosaicFromTiles(
-            Stream sourceImage, CloudBlobContainer tileContainer, string tileDirectory, Stream outputStream)
+            Stream sourceImage, 
+            CloudBlobContainer tileContainer, string tileDirectory, 
+            Stream outputStream,
+            int tilePixels)
         {
-            //using (var tileProvider = new QuadrantMatchingTileProvider()) {
-            var tileProvider = new QuadrantMatchingTileProvider();
+            using (var tileProvider = new QuadrantMatchingTileProvider()) {
                 MosaicBuilder.TileHeight = int.Parse(Environment.GetEnvironmentVariable("MosaicTileWidth"));
                 MosaicBuilder.TileWidth = int.Parse(Environment.GetEnvironmentVariable("MosaicTileHeight"));
+
+                // override default tile width and height if specified
+                if (tilePixels != 0) {
+                    MosaicBuilder.TileWidth = MosaicBuilder.TileHeight = tilePixels;
+                }
+
                 MosaicBuilder.DitheringRadius = -1;
                 MosaicBuilder.ScaleMultiplier = 1;
+
+                Trace.WriteLine("Downloading tiles images from storage"); 
 
                 var directory = tileContainer.GetDirectoryReference(tileDirectory);
                 var blobs = directory.ListBlobs(true);
@@ -183,8 +196,10 @@ namespace MosaicMaker
                 tileProvider.ProcessInputImageColors(MosaicBuilder.TileWidth, MosaicBuilder.TileHeight);
                 tileProvider.ProcessTileColors(tileImages);
 
+                Trace.WriteLine("Generating mosaic...");
+
                 GenerateMosaic(tileProvider, sourceImage, tileImages, outputStream);
-            //}
+            }
         }
 
         public static void SaveImage(string fullPath, SKImage outImage)
