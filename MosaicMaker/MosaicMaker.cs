@@ -76,7 +76,7 @@ namespace MosaicMaker
                 if (String.IsNullOrEmpty(predictionUrl)) { // if no Custom Vision API key was provided, skip it
                     noCustomImageSearch = true;
                 }
-               
+
                 try {
                     imageKeyword = await PredictImageAsync(predictionUrl, sourceImage, log);
                     noCustomImageSearch = String.IsNullOrEmpty(imageKeyword);
@@ -93,6 +93,11 @@ namespace MosaicMaker
                     imageKeyword = await AnalyzeImageAsync(sourceImage);
                 }
             }
+            else {
+                if (imageKeyword.EndsWith(" ")) {
+                    imageKeyword = imageKeyword.Substring(0, imageKeyword.IndexOf(" "));
+                }
+            }
 
             log.Info($"\n\nImage analysis: {imageKeyword}\n");
 
@@ -104,8 +109,8 @@ namespace MosaicMaker
                 queryDirectory, imageUrls, tileContainer, TileWidth, TileHeight);
 
             await GenerateMosaicFromTilesAsync(
-                sourceImage, tileContainer, queryDirectory, 
-                outputStream, 
+                sourceImage, tileContainer, queryDirectory,
+                outputStream,
                 mosaicRequest.TilePixels,
                 log);
 
@@ -137,7 +142,7 @@ namespace MosaicMaker
         static async Task<string> PredictImageAsync(string predictionApiUrl, Stream imageStream, TraceWriter log)
         {
             var client = new HttpClient();
-            client.DefaultRequestHeaders.Add("Prediction-Key", ImagePredictionKey);          
+            client.DefaultRequestHeaders.Add("Prediction-Key", ImagePredictionKey);
 
             HttpResponseMessage response;
             byte[] byteData = GetImageAsByteArray(imageStream);
@@ -156,13 +161,13 @@ namespace MosaicMaker
 
                 log.Info($"Tag: {tag}, Probability {probability}");
 
-                return probability >= 0.1 ? tag : ""; 
+                return probability >= 0.1 ? tag : "";
             }
         }
 
         public static async Task GenerateMosaicFromTilesAsync(
-            Stream sourceImage, 
-            CloudBlobContainer tileContainer, string tileDirectory, 
+            Stream sourceImage,
+            CloudBlobContainer tileContainer, string tileDirectory,
             Stream outputStream,
             int tilePixels,
             TraceWriter log)
@@ -199,7 +204,7 @@ namespace MosaicMaker
             Directory.CreateDirectory(cacheDir);
             var files = new DirectoryInfo(cacheDir).GetFiles();
             if (files.Length >= 50) {
-                return files.Select(x=> File.ReadAllBytes(x.FullName)).ToList();
+                return files.Select(x => File.ReadAllBytes(x.FullName)).ToList();
             }
 
             log.Info("Downloading tiles images from storage");
@@ -215,7 +220,7 @@ namespace MosaicMaker
             await Task.WhenAll(tasks);
             files = new DirectoryInfo(cacheDir).GetFiles();
             var result = files.Select(x => File.ReadAllBytes(x.FullName)).ToList();
-            
+
             log.Info($"Total time to fetch tiles {(DateTime.Now - start).TotalMilliseconds}");
 
             return result;
@@ -408,7 +413,7 @@ namespace MosaicMaker
                 .OrderBy(item => item.Item1); // sort by best match
 
             var rand = random.Next(5);
-            
+
             return rand < 4 ? sorted.First().Item2 : sorted.ElementAt(1).Item2;
         }
 
@@ -447,7 +452,7 @@ namespace MosaicMaker
 
             return rgbGrid;
         }
-        
+
         public void Dispose()
         {
             foreach (var tileImage in tileImageRGBGridList) {
