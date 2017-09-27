@@ -12,6 +12,7 @@ using Newtonsoft.Json.Linq;
 using System.Web;
 using Microsoft.WindowsAzure.Storage.Blob;
 using System.Diagnostics;
+using System.Threading;
 
 namespace MosaicMaker
 {
@@ -76,7 +77,7 @@ namespace MosaicMaker
             var httpClient = new HttpClient();
             var dir = outputContainer.GetDirectoryReference(queryId);
 
-            var cachedTileCount = dir.ListBlobs(true).Count();
+            var cachedTileCount = (await dir.ListBlobsAsync(true, CancellationToken.None)).Count();
 
             if (cachedTileCount >= 100) {
                 Trace.WriteLine($"Skipping tile download, have {cachedTileCount} images cached");

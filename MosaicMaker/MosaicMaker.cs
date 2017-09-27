@@ -208,11 +208,12 @@ namespace MosaicMaker
             var start = DateTime.Now;
 
             var directory = tileContainer.GetDirectoryReference(tileDirectory);
-            var blobs = directory.ListBlobs(true);
+            var blobs = await directory.ListBlobsAsync(true, CancellationToken.None);
 
-            var tasks = blobs.OfType<CloudBlockBlob>().Select(blob => Task.Run(() => {
-                blob.DownloadToFile(Path.Combine(cacheDir, Guid.NewGuid().ToString()), FileMode.Create);
-            }));
+            var tasks = blobs.OfType<CloudBlockBlob>().Select(blob => 
+                blob.DownloadToFileAsync(
+                    Path.Combine(cacheDir, Guid.NewGuid().ToString()), FileMode.Create)
+            );
 
             await Task.WhenAll(tasks);
             files = new DirectoryInfo(cacheDir).GetFiles();
