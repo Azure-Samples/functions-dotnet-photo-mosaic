@@ -48,7 +48,7 @@ namespace MosaicMaker
             var outputContainerName = Environment.GetEnvironmentVariable("output-container");
             var location = $"{storageURL}{outputContainerName}/{input.OutputFilename}";
 
-            log.Info($"Output location: {location}");
+            log.Info($"\n\nOutput location:\n{location}\n\n");
 
             return new AcceptedResult(location, null);
         }
