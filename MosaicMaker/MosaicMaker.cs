@@ -42,11 +42,15 @@ namespace MosaicMaker
 
             queueOutput = input;
 
-            var response = new HttpResponseMessage(HttpStatusCode.Accepted);
+            // get output URL
             var storageURL = Environment.GetEnvironmentVariable("STORAGE_URL");
             var outputContainerName = Environment.GetEnvironmentVariable("output-container");
+            var location = $"{storageURL}{outputContainerName}/{input.OutputFilename}";
+            log.Info($"\n\nOutput location:\n{location}\n\n");
 
-            response.Headers.Location = new Uri($"{storageURL}{outputContainerName}/{input.OutputFilename}");
+            var response = new HttpResponseMessage(HttpStatusCode.Accepted);
+            response.Content = new StringContent(location);
+            response.Headers.Location = new Uri(location);
 
             return response;
         }
