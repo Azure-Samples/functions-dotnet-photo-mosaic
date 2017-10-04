@@ -33,7 +33,12 @@ namespace MosaicMaker
 
         public static void EmitCustomTelemetry(bool customVisionMatch, string imageKeyword)
         {
-            TelemetryConfiguration.Active.InstrumentationKey = Environment.GetEnvironmentVariable("APPINSIGHTS_INSTRUMENTATIONKEY", EnvironmentVariableTarget.Process);
+            var key = Environment.GetEnvironmentVariable("APPINSIGHTS_INSTRUMENTATIONKEY", EnvironmentVariableTarget.Process); 
+            if (key == null) {
+                return;
+            }
+
+            TelemetryConfiguration.Active.InstrumentationKey = key;
             var telemetry = new TelemetryClient();
 
             telemetry.Context.Operation.Name = "AnalyzeImage";
