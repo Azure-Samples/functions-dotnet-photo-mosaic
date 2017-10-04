@@ -332,7 +332,7 @@
                 xhr.open("POST", `${SITEURL}/api/RequestMosaic`);
                 xhr.setRequestHeader('Content-Type', 'application/json');
                 xhr.send(JSON.stringify({
-                    InputImageUrl: `${STORAGE_URL}${INPUTCONTAINERNAME}/${file}`,
+                    InputImageUrl: `${STORAGE_URL}${INPUTCONTAINERNAME}/${file}${CONTAINER_SAS}`,
                     ImageContentString: searchTermText,
                     OutputFilename: file,
                     TilePixels: 20
@@ -408,11 +408,15 @@
                             response = JSON.parse(xhr.response);
                         }
                         STAGE = response.Stage;
-                        SITEURL = isLocal ? response.SiteURL : "";
-                        STORAGE_URL = response.StorageURL;
-                        CONTAINER_SAS = response.ContainerSAS;
-                        INPUTCONTAINERNAME = response.InputContainerName;
-                        OUTPUTCONTAINERNAME = response.OutputContainerName;
+
+                        // There's a serialization bug in Functions 2.0, so check fo both casing
+                        // See https://github.com/Azure/azure-webjobs-sdk-script/issues/1805
+                        SITEURL = response.SiteURL ? response.SiteURL : response.siteURL;
+                        SITEURL = isLocal ? SITEURL : ""; // if running locally, use value from response
+                        STORAGE_URL = response.StorageURL ? response.StorageURL : response.storageURL;
+                        CONTAINER_SAS = response.ContainerSAS ? response.ContainerSAS : response.containerSAS;
+                        INPUTCONTAINERNAME = response.InputContainerName ? response.InputContainerName : response.inputContainerName;
+                        OUTPUTCONTAINERNAME = response.OutputContainerName ? response.OutputContainerName : response.outputContainerName;
                         updateTitle();
                     }
                     xhr.send();
