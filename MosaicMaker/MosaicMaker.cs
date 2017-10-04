@@ -35,13 +35,13 @@ namespace MosaicMaker
         [FunctionName("RequestMosaic")]
         public static string RequestImageProcessing(
             [HttpTrigger(AuthorizationLevel.Anonymous, new string[] { "POST" })] MosaicRequest input,
-            [Queue("generate-mosaic")] ICollector<MosaicRequest> collector,
+            [Queue("%generate-mosaic%")] out MosaicRequest queueOutput,
             TraceWriter log)
         {
             if (string.IsNullOrEmpty(input.OutputFilename))
                 input.OutputFilename = $"{Guid.NewGuid()}.jpg";
 
-            collector.Add(input);
+            queueOutput = input;
 
             var response = new HttpResponseMessage(HttpStatusCode.Accepted);
             var storageURL = Environment.GetEnvironmentVariable("STORAGE_URL");
@@ -70,7 +70,7 @@ namespace MosaicMaker
 
         [FunctionName("CreateMosaic")]
         public static async Task CreateMosaicAsync(
-            [QueueTrigger("generate-mosaic")] MosaicRequest mosaicRequest,
+            [QueueTrigger("%generate-mosaic%")] MosaicRequest mosaicRequest,
             [Blob("%tile-image-container%")] CloudBlobContainer tileContainer,
             [Blob("%output-container%/{OutputFilename}", FileAccess.Write)] Stream outputStream,
             TraceWriter log)
