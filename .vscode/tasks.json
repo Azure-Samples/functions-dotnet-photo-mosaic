@@ -5,7 +5,10 @@
     "tasks": [
         {
             "taskName": "build",
-            "command": "dotnet build",
+            "command": "dotnet build MosaicMakerFunction.csproj",
+            "options": {
+                "cwd": "${workspaceRoot}/MosaicMaker"
+            },
             "type": "shell",
             "group": "build",
             "presentation": {
