@@ -15,6 +15,7 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Threading.Tasks;
 using System.Threading;
+using Microsoft.AspNetCore.Mvc;
 
 namespace MosaicMaker
 {
@@ -33,7 +34,7 @@ namespace MosaicMaker
         #endregion  
 
         [FunctionName("RequestMosaic")]
-        public static string RequestImageProcessing(
+        public static IActionResult RequestImageProcessing(
             [HttpTrigger(AuthorizationLevel.Anonymous, new string[] { "POST" })] MosaicRequest input,
             [Queue("%generate-mosaic%")] out MosaicRequest queueOutput,
             TraceWriter log)
@@ -43,13 +44,13 @@ namespace MosaicMaker
 
             queueOutput = input;
 
-            var response = new HttpResponseMessage(HttpStatusCode.Accepted);
             var storageURL = Environment.GetEnvironmentVariable("STORAGE_URL");
             var outputContainerName = Environment.GetEnvironmentVariable("output-container");
+            var location = $"{storageURL}{outputContainerName}/{input.OutputFilename}";
 
-            response.Headers.Location = new Uri($"{storageURL}{outputContainerName}/{input.OutputFilename}");
+            log.Info($"Output location: {location}");
 
-            return response;
+            return new AcceptedResult(location, null);
         }
 
         [FunctionName("Settings")]

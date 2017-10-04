@@ -3,7 +3,7 @@
   "bindings": [
     {
       "type": "queueTrigger",
-      "queueName": "generate-mosaic",
+      "queueName": "%generate-mosaic%",
       "name": "mosaicRequest"
     }
   ],
