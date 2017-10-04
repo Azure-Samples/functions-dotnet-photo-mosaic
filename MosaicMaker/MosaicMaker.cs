@@ -44,13 +44,13 @@ namespace MosaicMaker
 
             queueOutput = input;
 
+            // get output URL
             var storageURL = Environment.GetEnvironmentVariable("STORAGE_URL");
             var outputContainerName = Environment.GetEnvironmentVariable("output-container");
             var location = $"{storageURL}{outputContainerName}/{input.OutputFilename}";
-
             log.Info($"\n\nOutput location:\n{location}\n\n");
 
-            return new AcceptedResult(location, null);
+            return new AcceptedResult(location, location);
         }
 
         [FunctionName("Settings")]
