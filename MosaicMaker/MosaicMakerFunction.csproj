@@ -4,6 +4,7 @@
     <BaseNuGetRuntimeIdentifier>osx</BaseNuGetRuntimeIdentifier>
     <RuntimeIdentifier>osx</RuntimeIdentifier>
     <RootNamespace>MosaicMaker</RootNamespace>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
   </PropertyGroup>
   <ItemGroup>    
     <PackageReference Include="Microsoft.Azure.WebJobs" version="3.0.0-beta3" />
@@ -16,7 +17,6 @@
   </ItemGroup>
   <ItemGroup>
     <Reference Include="Microsoft.CSharp" />
-    <Reference Include="System.Web" />
   </ItemGroup>
   <ItemGroup>
     <None Update="host.json">
