@@ -10,6 +10,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Threading.Tasks;
@@ -31,12 +32,23 @@ namespace MosaicMaker
         #endregion  
 
         [FunctionName("RequestMosaic")]
-        [return: Queue("generate-mosaic")]
-        public static MosaicRequest RequestImageProcessing(
+        public static HttpResponseMessage RequestImageProcessing(
             [HttpTrigger(AuthorizationLevel.Anonymous, new string[] { "POST" })] MosaicRequest input,
+            [Queue("generate-mosaic")] ICollector<MosaicRequest> collector,
             TraceWriter log)
         {
-            return input;
+            if (string.IsNullOrEmpty(input.OutputFilename))
+                input.OutputFilename = $"{Guid.NewGuid()}.jpg";
+
+            collector.Add(input);
+
+            var response = new HttpResponseMessage(HttpStatusCode.Accepted);
+            var storageURL = Environment.GetEnvironmentVariable("STORAGE_URL");
+            var outputContainerName = Environment.GetEnvironmentVariable("output-container");
+
+            response.Headers.Location = new Uri($"{storageURL}{outputContainerName}/{input.OutputFilename}");
+
+            return response;
         }
 
         [FunctionName("Settings")]
