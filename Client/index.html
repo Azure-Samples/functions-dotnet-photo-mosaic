@@ -332,8 +332,9 @@
                 xhr.open("POST", `${SITEURL}/api/RequestMosaic`);
                 xhr.setRequestHeader('Content-Type', 'application/json');
                 xhr.send(JSON.stringify({
-                    InputImage: file,
+                    InputImageUrl: `${STORAGE_URL}${INPUTCONTAINERNAME}/${file}`,
                     ImageContentString: searchTermText,
+                    OutputFilename: file,
                     TilePixels: 20
                 }));
                 xhr.onload = (e) => {

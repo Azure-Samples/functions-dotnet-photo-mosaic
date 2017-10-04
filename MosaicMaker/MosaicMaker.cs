@@ -57,13 +57,13 @@ namespace MosaicMaker
 
         [FunctionName("CreateMosaic")]
         public static async Task CreateMosaicAsync(
-        [QueueTrigger("generate-mosaic")] MosaicRequest mosaicRequest,
-        [Blob("%input-container%/{InputImage}", FileAccess.Read)] Stream sourceImage,
-        [Blob("%tile-image-container%")] CloudBlobContainer tileContainer,
-        [Blob("%output-container%/{InputImage}", FileAccess.Write)] Stream outputStream,
-        TraceWriter log)
+            [QueueTrigger("generate-mosaic")] MosaicRequest mosaicRequest,
+            [Blob("%tile-image-container%")] CloudBlobContainer tileContainer,
+            [Blob("%output-container%/{OutputFilename}", FileAccess.Write)] Stream outputStream,
+            TraceWriter log)
         {
             var imageKeyword = mosaicRequest.ImageContentString;
+            var sourceImage = await DownloadFileAsync(mosaicRequest.InputImageUrl);
 
             // fall back to regular vision service if PredictionApiUrl is empty, 
             // or if Custom Vision does not have high confidence
@@ -117,9 +117,24 @@ namespace MosaicMaker
             Utilities.EmitCustomTelemetry(!noCustomImageSearch, imageKeyword);
         }
 
+        private static async Task<Stream> DownloadFileAsync(string inputImageUrl)
+        {
+            var client = new HttpClient();
+
+            try {
+                var bytes = await client.GetByteArrayAsync(inputImageUrl);
+                return new MemoryStream(bytes);
+                
+            }
+            catch (Exception) {
+                return null;
+            }
+        }
+
         public class MosaicRequest
         {
-            public string InputImage { get; set; }
+            public string InputImageUrl { get; set; }
+            public string OutputFilename { get; set; }
             public string ImageContentString { get; set; }  // if null or empty, use image recognition on the input image
             public int TilePixels { get; set; } // override default value in app settings
         }

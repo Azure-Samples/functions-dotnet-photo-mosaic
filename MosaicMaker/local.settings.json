@@ -1,5 +1,9 @@
 {
   "IsEncrypted": false,
+  "Host": {
+    "LocalHttpPort": 7072,
+    "CORS": "*"
+  },
   "Values": {
     "AzureWebJobsStorage": "",
     "SearchAPIKey": "",
