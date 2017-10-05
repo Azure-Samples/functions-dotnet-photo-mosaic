@@ -10,14 +10,14 @@
     "MosaicTileWidth": "20",
     "MosaicTileHeight": "20",
     "MicrosoftVisionApiKey": "",
+    "PredictionApiUrl": "",
     "PredictionApiKey": "",
-    "PredictionApiUrl": "https://southcentralus.api.cognitive.microsoft.com/customvision/v1.0/Prediction/a1e73d3c-09d1-4850-b5aa-226b35ae7a8d/image",
     "input-container": "input-images",
     "output-container": "mosaic-output",
     "tile-image-container": "tile-images",
     "generate-mosaic": "generate-mosaic",
-    "SITEURL": "http://localhost:7071",
-    "STORAGE_URL": "https://donnamstorage.blob.core.windows.net/",
+    "SITEURL": "http://localhost:7072",
+    "STORAGE_URL": "",
     "CONTAINER_SAS": "",
     "APPINSIGHTS_INSTRUMENTATIONKEY": ""
   }
