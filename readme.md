@@ -65,6 +65,8 @@ az login
 python setup.py storage-account resource-group
 ```
 
+If you get python errors, make sure you've installed Python 3 and run the command `python3` instead (see [Installing Python 3 on Mac OS X](http://docs.python-guide.org/en/latest/starting/install3/osx/)).
+
 This will modify the file [local.settings.json](MosaicMaker/local.settings.json).
 
 Alternatively, you can run the script from the Azure Cloud Shell in the Azure Portal. Just run `python` and paste the script. The script prints out settings values that you can use to manually modify `local.settings.json`. 
