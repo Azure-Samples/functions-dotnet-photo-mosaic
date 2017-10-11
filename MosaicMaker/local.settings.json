@@ -1,7 +1,7 @@
 {
   "IsEncrypted": false,
   "Host": {
-    "LocalHttpPort": 7072,
+    "LocalHttpPort": 7071,
     "CORS": "*"
   },
   "Values": {
@@ -16,7 +16,7 @@
     "output-container": "mosaic-output",
     "tile-image-container": "tile-images",
     "generate-mosaic": "generate-mosaic",
-    "SITEURL": "http://localhost:7072",
+    "SITEURL": "http://localhost:7071",
     "STORAGE_URL": "",
     "CONTAINER_SAS": "",
     "APPINSIGHTS_INSTRUMENTATIONKEY": ""
