@@ -237,12 +237,7 @@
                         return `${STORAGE_URL}${INPUTCONTAINERNAME}/${files[0].name}${CONTAINER_SAS}`;
                     },
                     accept: (file, done) => {
-                        if (file.name.endsWith(".jpg") || file.name.endsWith(".png")) {
-                            done();
-                        } else {
-                            alert("We only accept files which end with .jpg or .png");
-                            done("We only accept files which end with .jpg or .png");
-                        }
+                        done();
                     },
                     clickable: true,
                     method: "PUT",
@@ -252,10 +247,7 @@
                         });
                         this.on("addedfile", function (file) {
                             const that = this;
-                            if (!(file.name.endsWith(".jpg") || file.name.endsWith(".png"))) {
-                                this.removeFile(file);
-                                return;
-                            }
+                            
                             const name = uploadFile(file, (err) => {
                                 console.log("File uploaded");
                                 that.removeFile(file);
@@ -309,9 +301,7 @@
                     xhr.setRequestHeader('Content-Type', 'image/jpeg');
                 }
                 else {
-                    // We santize the input before this, but just incase...
-                    alert("We only accept files which end with .jpg or .png");
-                    throw new Error("Unrecognized File extension: " + fileExt);
+                    xhr.setRequestHeader('Content-Type', 'image/jpeg');
                 }
                 xhr.send(file);
                 xhr.onload = (e) => {
@@ -407,7 +397,7 @@
                         if (typeof xhr.response === "string") {
                             response = JSON.parse(xhr.response);
                         }
-                        STAGE = response.stage;
+                        STAGE = response.Stage ? response.Stage : response.stage;
 
                         // There's a serialization bug in Functions 2.0, so check fo both casing
                         // See https://github.com/Azure/azure-webjobs-sdk-script/issues/1805
