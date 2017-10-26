@@ -234,7 +234,7 @@ namespace MosaicMaker
             log.Info("Downloading tiles images from storage");
             var start = DateTime.Now;
 
-            var directory = tileContainer.GetDirectoryReference(tileDirectory);
+            var directory = tileContainer.GetDirectoryReference("");
             var blobs = await directory.ListBlobsAsync(true, CancellationToken.None);
 
             var tasks = blobs.OfType<CloudBlockBlob>().Select(blob => 
@@ -438,7 +438,7 @@ namespace MosaicMaker
                 .OrderBy(item => item.Item1); // sort by best match
 
             var rand = random.Next(5);
-            
+
             return rand < 4 ? sorted.First().Item2 : sorted.ElementAt(1).Item2;
         }
 
