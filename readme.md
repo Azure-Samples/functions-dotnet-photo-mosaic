@@ -122,7 +122,11 @@ If you want to set these values in Azure, you can set them in **local.settings.j
 func azure functionapp publish function-app-name --publish-app-settings
 ```
 
-## 4. Run the project
+## 4. Load Tile Images
+
+When the function app creates a mosaic, it needs source images to compose the mosaic.  The **tile-image-container** referred to in App Settings (defaulted to **tile-images**) is the container that the function will look for images to use.  Running the **setup.py** script above generated the containers for you, but you'll need to load images that container.  Using the portal, [Azure Storage Explorer](https://azure.microsoft.com/en-us/features/storage-explorer/), or any other method of uploading blobs, upload images into the **tile-image-container** inside of your storage account.  You can reuse the landmark images you downloaded earlier if desired.
+
+## 5. Run the project
 
 1. Compile and run:
 

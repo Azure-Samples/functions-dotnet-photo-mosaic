@@ -240,8 +240,8 @@ namespace MosaicMaker
 
             log.Info("Downloading tiles images from storage");
             var start = DateTime.Now;
-
-            var directory = tileContainer.GetDirectoryReference(tileDirectory);
+            
+            var directory = tileContainer.GetDirectoryReference("");
             var blobs = directory.ListBlobs(true);
 
             var tasks = blobs.OfType<CloudBlockBlob>().Select(blob => Task.Run(() => {
