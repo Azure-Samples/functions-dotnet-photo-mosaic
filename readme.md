@@ -42,7 +42,7 @@ For example, you can train your model with Orlando landmarks, such as the Orland
 
     To create a Computer Vision API key:
 
-    - In the Azure portal, click **+ New** and search for **Bing Search APIs**.
+    - In the Azure portal, click **+ New** and search for **Computer Vision API**.
     - Enter the required information in the Create blade. You may use the free tier **F0** for this module.
 
 ## 2. Set up Custom Vision Service project
