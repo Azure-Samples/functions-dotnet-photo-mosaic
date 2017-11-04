@@ -22,6 +22,7 @@ namespace MosaicMaker
         #region Member variables
 
         private static readonly string VisionServiceApiKey = Environment.GetEnvironmentVariable("MicrosoftVisionApiKey");
+        private static readonly string VisionServiceApiRoot =  Environment.GetEnvironmentVariable("MicrosoftVisionApiRoot");
         private static readonly string ImagePredictionKey = Environment.GetEnvironmentVariable("PredictionApiKey");
 
         public static int TileHeight { get; set; }
@@ -92,14 +93,18 @@ namespace MosaicMaker
                 if (String.IsNullOrEmpty(predictionUrl)) { // if no Custom Vision API key was provided, skip it
                     noCustomImageSearch = true;
                 }
-
-                try {
-                    imageKeyword = await PredictImageAsync(predictionUrl, sourceImage, log);
-                    noCustomImageSearch = String.IsNullOrEmpty(imageKeyword);
-                }
-                catch (Exception e) {
-                    log.Info($"Custom image failed: {e.Message}");
-                    noCustomImageSearch = true; // on exception, use regular Vision Service
+                else
+                {
+                    try
+                    {
+                        imageKeyword = await PredictImageAsync(predictionUrl, sourceImage, log);
+                        noCustomImageSearch = String.IsNullOrEmpty(imageKeyword);
+                    }
+                    catch (Exception e)
+                    {
+                        log.Info($"Custom image failed: {e.Message}");
+                        noCustomImageSearch = true; // on exception, use regular Vision Service
+                    }
                 }
 
                 if (noCustomImageSearch) {
@@ -158,7 +163,9 @@ namespace MosaicMaker
         #region Helpers
         private static async Task<string> AnalyzeImageAsync(Stream image)
         {
-            var client = new VisionServiceClient(VisionServiceApiKey);
+            var client = String.IsNullOrEmpty(VisionServiceApiRoot)
+                ? new VisionServiceClient(VisionServiceApiKey)
+                : new VisionServiceClient(VisionServiceApiKey, VisionServiceApiRoot);
             var result = await client.AnalyzeImageAsync(image, new VisualFeature[] { VisualFeature.Description });
 
             return result.Description.Captions.FirstOrDefault().Text;
@@ -241,7 +248,7 @@ namespace MosaicMaker
             log.Info("Downloading tiles images from storage");
             var start = DateTime.Now;
             
-            var directory = tileContainer.GetDirectoryReference("");
+            var directory = tileContainer.GetDirectoryReference(tileDirectory);
             var blobs = directory.ListBlobs(true);
 
             var tasks = blobs.OfType<CloudBlockBlob>().Select(blob => Task.Run(() => {
