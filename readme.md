@@ -42,7 +42,7 @@ For example, you can train your model with Orlando landmarks, such as the Orland
 
     To create a Computer Vision API key:
 
-    - In the Azure portal, click **+ New** and search for **Bing Search APIs**.
+    - In the Azure portal, click **+ New** and search for **Computer Vision API**.
     - Enter the required information in the Create blade. You may use the free tier **F0** for this module.
 
 ## 2. Set up Custom Vision Service project
@@ -94,7 +94,7 @@ Alternatively, you can run the script from the Azure Cloud Shell in the Azure Po
 
 1. In the Azure portal, select your Bing Search APIs instance. Select the **Keys** menu item and copy the value of **KEY 1**. Paste the value for the key `SearchAPIKey`in **local.settings.json**.
 
-1. (Optional) Photo mosaic will fall back to the regular vision service if there is not a match with custom vision. Paste your key for your Cognitive Services Vision Service as the value for `MicrosoftVisionApiKey` in **local.settings.json**.
+1. (Optional) Photo mosaic will fall back to the regular vision service if there is not a match with custom vision. Paste your key for your Cognitive Services Vision Service as the value for `MicrosoftVisionApiKey` in **local.settings.json**. If you created this service in a region outside US, also paste the `Endpoint` URL into `MicrosoftVisionApiRoot`.
 
 ### Summary of App Settings 
 
@@ -103,6 +103,7 @@ Alternatively, you can run the script from the Azure Cloud Shell in the Azure Po
 | AzureWebJobsStorage  | Storage account connection string. |
 | SearchAPIKey         | Key for [Bing Search API](https://azure.microsoft.com/en-us/services/cognitive-services/bing-web-search-api/). |
 | MicrosoftVisionApiKey | Key for [Computer Vision Service](https://azure.microsoft.com/en-us/services/cognitive-services/computer-vision/). |
+| MicrosoftVisionApiRoot | optional API root for [Computer Vision Service](https://azure.microsoft.com/en-us/services/cognitive-services/computer-vision/) if you created this service in a region outside US. |
 | PredictionApiUrl     | Endpoint for [Cognitive Services Custom Vision Service](https://azure.microsoft.com/en-us/services/cognitive-services/custom-vision-service/). It should end with "image". |
 | PredictionApiKey     | Prediction key for [Cognitive Services Custom Vision Service](https://azure.microsoft.com/en-us/services/cognitive-services/custom-vision-service/). |
 | generate-mosaic      | Name of Storage queue for to trigger mosaic generation. Default value is "generate-mosaic". |

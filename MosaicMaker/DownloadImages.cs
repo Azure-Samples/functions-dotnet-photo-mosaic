@@ -19,7 +19,7 @@ namespace MosaicMaker
     {
         private const string SubscriptionKeyHeader = "Ocp-Apim-Subscription-Key";
         private const string SearchApiKeyName = "SearchAPIKey";
-        private const string BingSearchUri = "https://api.cognitive.microsoft.com/bing/v5.0/images/search";
+        private const string BingSearchUri = "https://api.cognitive.microsoft.com/bing/v7.0/images/search";
 
         public static async Task<List<string>> GetImageResultsAsync(string query, TraceWriter log)
         {
