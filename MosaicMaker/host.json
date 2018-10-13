@@ -1,3 +1,6 @@
 {
-  "queues": {"maxPollingInterval": 500}
+  "queues": {
+    "maxPollingInterval": 500
+  },
+  "id": "371b39506d514ea2ad65d43e736f1070"
 }
